@@ -1,0 +1,38 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "love_rose_db",
+    "host": "localhost",
+    "port": 5432,
+    "dialect": "postgres",
+    "logging": false,
+    "dialectOptions": {
+      "ssl": false
+    }
+  },
+  "test": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "love_rose_test",
+    "host": "localhost",
+    "port": 5432,
+    "dialect": "postgres",
+    "logging": false,
+    "dialectOptions": {
+      "ssl": false
+    }
+  },
+  "production": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "love_rose_prod",
+    "host": "localhost",
+    "port": 5432,
+    "dialect": "postgres",
+    "logging": false,
+    "dialectOptions": {
+      "ssl": false
+    }
+  }
+}
