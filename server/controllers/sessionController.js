@@ -1,5 +1,5 @@
 const Session = require('../models/Session');
-const User = require('../models/User');
+const User = require('../models/User.model');
 const Profile = require('../models/Profile');
 const { validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');

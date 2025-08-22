@@ -1,4 +1,3 @@
-require('dotenv').config();
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
@@ -7,7 +6,6 @@ const morgan = require('morgan');
 const colors = require('colors');
 const path = require('path');
 const cookieParser = require('cookie-parser');
-const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
 const hpp = require('hpp');
 const xss = require('xss-clean');
@@ -19,7 +17,7 @@ const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // Importar rutas
 const apiRoutes = require('./routes');
-const webrtcRoutes = require('./routes/webrtc');
+// const webrtcRoutes = require('./routes/webrtc'); // deshabilitado: depende de modelos Mongoose inexistentes
 
 // Inicializar la aplicación Express
 const app = express();
@@ -37,6 +35,36 @@ app.set('io', io);
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
+// Configuración CORS
+const allowedOrigins = [
+  'http://localhost:5173', // Vite dev server
+  'http://localhost:3000', // React dev server
+  'http://127.0.0.1:5173', // Vite con localhost numérico
+  'http://127.0.0.1:3000'  // React con localhost numérico
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir solicitudes sin origen (como aplicaciones móviles o curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = `El origen ${origin} no tiene permiso de acceso.`;
+      console.warn(msg);
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true, // Permite el envío de credenciales (cookies, encabezados de autenticación)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'X-Total-Count'],
+  optionsSuccessStatus: 200
+};
+
+// Aplicar CORS con las opciones configuradas
+app.use(cors(corsOptions));
+
 // Middleware para cookies
 app.use(cookieParser(process.env.JWT_COOKIE_SECRET || 'secreto_para_firmar_cookies'));
 
@@ -48,24 +76,12 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Configuración de CORS
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : 'http://localhost:3000',
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-
 // Seguridad con Helmet
 app.use(helmet());
 
 // Prevención de XSS (Cross-Site Scripting)
 app.use(xss());
 
-// Prevenir inyección NoSQL
-app.use(mongoSanitize());
 
 // Prevenir parámetros de consulta contaminados
 app.use(hpp());
@@ -92,12 +108,12 @@ app.use(fileUpload({
   responseOnLimit: 'El tamaño del archivo excede el límite permitido de 50MB'
 }));
 
-// Servir archivos estáticos
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Servir archivos estáticos (carpeta uploads en la raíz del proyecto)
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Rutas de la API
 app.use('/api', apiRoutes);
-app.use('/api/webrtc', webrtcRoutes);
+// app.use('/api/webrtc', webrtcRoutes); // deshabilitado temporalmente
 
 // Ruta de prueba
 app.get('/', (req, res) => {

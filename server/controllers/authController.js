@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { Op } = require('sequelize');
 const { User } = require('../models');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
@@ -17,12 +19,13 @@ exports.login = async (req, res, next) => {
     }
 
     // Verificar si el usuario existe
+    console.log(`[AUTH] Login intento para: ${email}`);
     const user = await User.findOne({ 
-      where: { email },
-      attributes: { include: ['password'] } // Incluir el campo password que normalmente está excluido
+      where: { email }
     });
     
     if (!user) {
+      console.warn('[AUTH] Usuario no encontrado');
       return res.status(401).json({ 
         success: false, 
         error: 'Credenciales inválidas' 
@@ -32,6 +35,7 @@ exports.login = async (req, res, next) => {
     // Verificar contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.warn('[AUTH] Contraseña incorrecta');
       return res.status(401).json({ 
         success: false, 
         error: 'Credenciales inválidas' 
@@ -39,28 +43,37 @@ exports.login = async (req, res, next) => {
     }
 
     // Verificar si el usuario está verificado
-    if (!user.isVerified) {
+    if (!user.is_verified) {
+      console.warn(`[AUTH] Usuario no verificado - Email: ${user.email}, is_verified: ${user.is_verified}`);
       return res.status(403).json({ 
         success: false, 
-        error: 'Por favor verifica tu correo electrónico para activar tu cuenta' 
+        error: 'Por favor verifica tu correo electrónico para activar tu cuenta',
+        requiresVerification: true
       });
     }
 
     // Verificar si la cuenta está activa
-    if (user.status !== 'active') {
+    if (user.is_active === false) {
+      console.warn(`[AUTH] Usuario inactivo - Email: ${user.email}, is_active: ${user.is_active}`);
       return res.status(403).json({ 
         success: false, 
-        error: 'Tu cuenta ha sido desactivada. Contacta al soporte para más información.' 
+        error: 'Tu cuenta ha sido desactivada. Contacta al soporte para más información.'
       });
     }
 
+    // Actualizar último inicio de sesión
+    user.last_login = new Date();
+    user.loginCount = (user.loginCount || 0) + 1;
+    await user.save({ silent: true });
+    
     // Crear token JWT
     const token = user.getSignedJwtToken();
 
     // Configurar opciones para la cookie
+    const cookieDays = Number(process.env.JWT_COOKIE_EXPIRE || 7);
     const options = {
       expires: new Date(
-        Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
+        Date.now() + cookieDays * 24 * 60 * 60 * 1000
       ),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -75,12 +88,12 @@ exports.login = async (req, res, next) => {
         success: true,
         token,
         user: {
-          id: user._id,
-          name: user.name,
+          id: user.id,
+          username: user.username,
           email: user.email,
           role: user.role,
-          isVerified: user.isVerified,
-          profile: user.profile
+          is_verified: user.is_verified,
+          is_active: user.is_active
         }
       });
   } catch (error) {
@@ -112,8 +125,10 @@ exports.logout = (req, res) => {
 // @access  Private
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).populate('profile');
-    
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
     res.status(200).json({
       success: true,
       data: user
@@ -137,10 +152,11 @@ exports.updateDetails = async (req, res, next) => {
       email: req.body.email
     };
 
-    const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
-      new: true,
-      runValidators: true
-    });
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+    await user.update(fieldsToUpdate);
 
     res.status(200).json({
       success: true,
@@ -148,6 +164,10 @@ exports.updateDetails = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error al actualizar detalles:', error);
+    // Duplicado de email en Sequelize
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ success: false, error: 'El correo electrónico ya está en uso' });
+    }
     res.status(500).json({ 
       success: false, 
       error: 'Error al actualizar la información' 
@@ -160,10 +180,14 @@ exports.updateDetails = async (req, res, next) => {
 // @access  Private
 exports.updatePassword = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).select('+password');
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
 
     // Verificar contraseña actual
-    if (!(await user.matchPassword(req.body.currentPassword))) {
+    const isValid = await user.matchPassword(req.body.currentPassword);
+    if (!isValid) {
       return res.status(401).json({ 
         success: false, 
         error: 'La contraseña actual es incorrecta' 
@@ -212,7 +236,7 @@ exports.register = async (req, res, next) => {
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role
@@ -220,13 +244,9 @@ exports.register = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error en registro:', error);
-    
-    // Manejar errores de duplicados
-    if (error.code === 11000) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'El correo electrónico ya está en uso' 
-      });
+    // Manejar errores de duplicados en Sequelize
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ success: false, error: 'El correo electrónico ya está en uso' });
     }
     
     res.status(500).json({ 
@@ -255,7 +275,7 @@ exports.confirmEmail = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Buscar usuario
-    const user = await User.findById(decoded.id);
+    const user = await User.findByPk(decoded.id);
 
     if (!user) {
       return res.status(400).json({ 
@@ -265,7 +285,7 @@ exports.confirmEmail = async (req, res, next) => {
     }
 
     // Verificar si ya está verificado
-    if (user.isVerified) {
+    if (user.is_verified) {
       return res.status(400).json({ 
         success: false, 
         error: 'El correo electrónico ya ha sido verificado' 
@@ -273,9 +293,9 @@ exports.confirmEmail = async (req, res, next) => {
     }
 
     // Actualizar usuario
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationExpire = undefined;
+    user.is_verified = true;
+    user.verification_token = null;
+    user.verification_expire = null;
     await user.save();
 
     // Enviar respuesta
@@ -304,8 +324,9 @@ exports.confirmEmail = async (req, res, next) => {
 // @route   POST /api/auth/forgotpassword
 // @access  Public
 exports.forgotPassword = async (req, res, next) => {
+  let user;
   try {
-    const user = await User.findOne({ email: req.body.email });
+    user = await User.findOne({ where: { email: req.body.email } });
 
     if (!user) {
       return res.status(404).json({
@@ -316,7 +337,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     // Obtener token de restablecimiento
     const resetToken = user.getResetPasswordToken();
-    await user.save({ validateBeforeSave: false });
+    await user.save({ fields: ['reset_password_token', 'reset_password_expire'] });
 
     // Crear URL de restablecimiento
     const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/resetpassword/${resetToken}`;
@@ -335,10 +356,12 @@ exports.forgotPassword = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error en olvidé mi contraseña:', error);
-    
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save({ validateBeforeSave: false });
+    // Limpiar solo si el usuario fue obtenido previamente
+    if (user) {
+      user.reset_password_token = null;
+      user.reset_password_expire = null;
+      await user.save({ fields: ['reset_password_token', 'reset_password_expire'] });
+    }
 
     res.status(500).json({ 
       success: false, 
@@ -358,9 +381,12 @@ exports.resetPassword = async (req, res, next) => {
       .update(req.params.resettoken)
       .digest('hex');
 
+    // Buscar usuario con token válido
     const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpire: { $gt: Date.now() }
+      where: {
+        reset_password_token: resetPasswordToken,
+        reset_password_expire: { [Op.gt]: new Date() }
+      }
     });
 
     if (!user) {
@@ -370,11 +396,11 @@ exports.resetPassword = async (req, res, next) => {
       });
     }
 
-    // Establecer nueva contraseña
+    // Establecer nueva contraseña y limpiar tokens
     user.password = req.body.password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save();
+    user.reset_password_token = null;
+    user.reset_password_expire = null;
+    await user.save({ fields: ['password', 'reset_password_token', 'reset_password_expire'] });
 
     // Enviar token
     sendTokenResponse(user, 200, res);
@@ -408,11 +434,11 @@ const sendTokenResponse = (user, statusCode, res) => {
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        isVerified: user.isVerified
+        is_verified: user.is_verified
       }
     });
 };

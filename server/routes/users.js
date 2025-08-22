@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { check } = require('express-validator');
 const userController = require('../controllers/userController');
-const { protect } = require('../middleware/auth'); // Cambiado a la importación nombrada
-const admin = require('../middleware/admin');
+const { protect, authorize } = require('../middleware/auth');
 
 // Verificar que los controladores son funciones antes de usarlos
 const verifyController = (controller, method) => {
@@ -37,7 +36,17 @@ const verifyController = (controller, method) => {
 // @route   GET /api/users
 // @desc    Obtener todos los usuarios
 // @access  Private/Admin
-router.get('/', [protect, admin], verifyController(userController, 'getUsers'));
+router.get('/', [protect, authorize('admin')], verifyController(userController, 'getUsers'));
+
+// @route   GET /api/users/clients
+// @desc    Obtener usuarios con rol 'user' (Clientes)
+// @access  Private/Admin
+router.get('/clients', [protect, authorize('admin')], verifyController(userController, 'getClients'));
+
+// @route   GET /api/users/roles-summary
+// @desc    Resumen de roles y miembros por rol
+// @access  Private/Admin
+router.get('/roles-summary', [protect, authorize('admin')], verifyController(userController, 'getRolesSummary'));
 
 // @route   GET /api/users/me
 // @desc    Obtener perfil del usuario actual
@@ -47,7 +56,7 @@ router.get('/me', protect, verifyController(userController, 'getCurrentUser'));
 // @route   GET /api/users/:id
 // @desc    Obtener usuario por ID
 // @access  Private/Admin
-router.get('/:id', [protect, admin], verifyController(userController, 'getUserById'));
+router.get('/:id', [protect, authorize('admin')], verifyController(userController, 'getUserById'));
 
 // @route   POST /api/users
 // @desc    Crear un nuevo usuario (solo admin)
@@ -56,9 +65,8 @@ router.post(
   '/',
   [
     protect,
-    admin,
+    authorize('admin'),
     [
-      check('name', 'El nombre es obligatorio').not().isEmpty(),
       check('email', 'Por favor incluye un email válido').isEmail(),
       check('password', 'Por favor ingresa una contraseña con 6 o más caracteres').isLength({ min: 6 }),
       check('role', 'Rol no válido').isIn(['user', 'model', 'admin'])
@@ -74,46 +82,35 @@ router.put(
   '/:id',
   [
     protect,
-    admin,
+    authorize('admin'),
     [
-      check('name', 'El nombre es obligatorio').not().isEmpty(),
-      check('email', 'Por favor incluye un email válido').isEmail(),
-      check('role', 'Rol no válido').isIn(['user', 'model', 'admin']),
-      check('isActive', 'Estado de activación no válido').isBoolean()
+      check('email').optional().isEmail(),
+      check('role').optional().isIn(['user', 'model', 'admin']),
+      check('isActive').optional().isBoolean()
     ]
   ],
-  userController.updateUser
+  verifyController(userController, 'updateUser')
 );
 
 // @route   DELETE /api/users/:id
 // @desc    Eliminar usuario (marcar como inactivo)
 // @access  Private/Admin
-router.delete('/:id', [auth, admin], userController.deleteUser);
+router.delete('/:id', [protect, authorize('admin')], verifyController(userController, 'deleteUser'));
 
 // @route   PUT /api/users/:id/activate
 // @desc    Activar usuario
 // @access  Private/Admin
-router.put('/:id/activate', [auth, admin], userController.activateUser);
+router.put('/:id/activate', [protect, authorize('admin')], verifyController(userController, 'activateUser'));
 
 // @route   PUT /api/users/:id/deactivate
 // @desc    Desactivar usuario
 // @access  Private/Admin
-router.put('/:id/deactivate', [auth, admin], userController.deactivateUser);
+router.put('/:id/deactivate', [protect, authorize('admin')], verifyController(userController, 'deactivateUser'));
 
 // @route   PUT /api/users/update-profile
 // @desc    Actualizar perfil del usuario actual
 // @access  Private
-router.put(
-  '/update-profile',
-  [
-    auth,
-    [
-      check('name', 'El nombre es obligatorio').not().isEmpty(),
-      check('email', 'Por favor incluye un email válido').isEmail()
-    ]
-  ],
-  userController.updateProfile
-);
+// Rutas no soportadas (perfil/avatares/seguidores/etc.) fueron removidas para evitar errores
 
 // @route   PUT /api/users/update-password
 // @desc    Actualizar contraseña del usuario actual
@@ -121,73 +118,19 @@ router.put(
 router.put(
   '/update-password',
   [
-    auth,
+    protect,
     [
       check('currentPassword', 'La contraseña actual es requerida').exists(),
       check('newPassword', 'Por favor ingresa una contraseña con 6 o más caracteres').isLength({ min: 6 })
     ]
   ],
-  userController.updateUserPassword
+  verifyController(userController, 'updateUserPassword')
 );
 
 // @route   POST /api/users/upload-avatar
 // @desc    Subir avatar del usuario
 // @access  Private
-router.post('/upload-avatar', auth, userController.uploadAvatar);
-
-// @route   DELETE /api/users/delete-avatar
-// @desc    Eliminar avatar del usuario
-// @access  Private
-router.delete('/delete-avatar', auth, userController.deleteAvatar);
-
-// @route   GET /api/users/:id/profile
-// @desc    Obtener perfil público de un usuario
-// @access  Public
-router.get('/:id/profile', userController.getUserProfile);
-
-// @route   GET /api/users/:id/contents
-// @desc    Obtener contenidos de un usuario
-// @access  Public
-router.get('/:id/contents', userController.getUserContents);
-
-// @route   GET /api/users/:id/sessions
-// @desc    Obtener sesiones de un usuario
-// @access  Public
-router.get('/:id/sessions', userController.getUserSessions);
-
-// @route   GET /api/users/:id/reviews
-// @desc    Obtener reseñas de un usuario
-// @access  Public
-router.get('/:id/reviews', userController.getUserReviews);
-
-// @route   GET /api/users/:id/followers
-// @desc    Obtener seguidores de un usuario
-// @access  Public
-router.get('/:id/followers', userController.getUserFollowers);
-
-// @route   GET /api/users/:id/following
-// @desc    Obtener usuarios que sigue un usuario
-// @access  Public
-router.get('/:id/following', userController.getUserFollowing);
-
-// @route   POST /api/users/:id/follow
-// @desc    Seguir a un usuario
-// @access  Private
-router.post('/:id/follow', auth, userController.followUser);
-
-// @route   POST /api/users/:id/unfollow
-// @desc    Dejar de seguir a un usuario
-// @access  Private
-router.post('/:id/unfollow', auth, userController.unfollowUser);
-
-// @route   GET /api/users/search/:query
-// @desc    Buscar usuarios
-// @access  Public
-router.get('/search/:query', userController.searchUsers);
-
-// @route   GET /api/users/top/creators
-// @desc    Obtener los mejores creadores
-// @access  Public
-router.get('/top/creators', userController.getTopCreators);
+// Rutas avanzadas (búsqueda, perfiles públicos, etc.) podrán reactivarse cuando
+// exista soporte en controladores y modelos Sequelize.
 
 module.exports = router;

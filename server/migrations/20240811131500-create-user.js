@@ -26,7 +26,7 @@ module.exports = {
         allowNull: false,
       },
       role: {
-        type: Sequelize.ENUM('user', 'model', 'admin'),
+        type: Sequelize.ENUM('user', 'model', 'admin', 'agency'),
         defaultValue: 'user',
       },
       is_verified: {

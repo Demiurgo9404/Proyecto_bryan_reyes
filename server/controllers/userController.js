@@ -1,4 +1,4 @@
-const { User, Profile } = require('../models');
+const { User } = require('../models');
 const { validationResult } = require('express-validator');
 const { Op } = require('sequelize');
 
@@ -7,131 +7,226 @@ const { Op } = require('sequelize');
 // @access  Private/Admin
 exports.getUsers = async (req, res, next) => {
   try {
-    // Configuración de paginación
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 25;
     const offset = (page - 1) * limit;
 
-    // Configuración de ordenamiento
-    let order = [['createdAt', 'DESC']];
+    // Helpers de campos
+    const camelToSnake = (s) => s.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    const createdAtField = User.rawAttributes?.createdAt?.field || 'created_at';
+    const updatedAtField = User.rawAttributes?.updatedAt?.field || 'updated_at';
+    const mapSortField = (f) => {
+      if (f === 'createdAt') return createdAtField;
+      if (f === 'updatedAt') return updatedAtField;
+      return camelToSnake(f);
+    };
+
+    // Orden por createdAt real de la tabla
+    let order = [[createdAtField, 'DESC']];
     if (req.query.sort) {
       const sortFields = req.query.sort.split(',');
-      order = sortFields.map(field => {
-        let order = 'ASC';
+      order = sortFields.map((field) => {
+        let dir = 'ASC';
         if (field.startsWith('-')) {
           field = field.substring(1);
-          order = 'DESC';
+          dir = 'DESC';
         }
-        return [field, order];
+        return [mapSortField(field), dir];
       });
     }
 
-    // Configuración de atributos a incluir
-    let attributes = { exclude: ['password'] }; // Por defecto, excluir la contraseña
+    // Attributes selection: use array form when select is provided; always exclude password
+    let attributes = { exclude: ['password'] };
     if (req.query.select) {
-      const selectedFields = req.query.select.split(',');
-      // Asegurarse de no incluir la contraseña a menos que se solicite explícitamente
-      if (!selectedFields.includes('password')) {
-        attributes.exclude = ['password'];
-      } else {
-        attributes.exclude = [];
-      }
-      attributes.include = selectedFields;
+      const selected = req.query.select.split(',');
+      const cleaned = selected.filter((f) => f !== 'password');
+      attributes = cleaned.length ? cleaned : { exclude: ['password'] };
     }
 
-    // Construir condiciones de búsqueda
+    // Construcción segura de filtros
     const where = {};
-    Object.keys(req.query).forEach(key => {
-      if (!['select', 'sort', 'page', 'limit'].includes(key)) {
-        where[key] = req.query[key];
-      }
-    });
+    const roles = ['admin', 'agency', 'model', 'user'];
+    const truthy = ['true', '1', 'activo', 'active', 'yes', 'si'];
+    const falsy = ['false', '0', 'inactivo', 'inactive', 'no'];
 
-    // Realizar la consulta con paginación
+    // role
+    if (typeof req.query.role !== 'undefined' && req.query.role !== '' && req.query.role !== 'all') {
+      if (roles.includes(req.query.role)) where.role = req.query.role;
+    }
+
+    // estado/isActive
+    const stateInput = (req.query.isActive ?? req.query.estado ?? req.query.state);
+    if (typeof stateInput !== 'undefined' && stateInput !== '' && stateInput !== 'all') {
+      const v = String(stateInput).toLowerCase();
+      if (truthy.includes(v)) where.isActive = true;
+      if (falsy.includes(v)) where.isActive = false;
+    }
+
+    // isVerified
+    if (typeof req.query.isVerified !== 'undefined' && req.query.isVerified !== '') {
+      const v = String(req.query.isVerified).toLowerCase();
+      if (truthy.includes(v)) where.isVerified = true;
+      if (falsy.includes(v)) where.isVerified = false;
+    }
+
+    // username/email exactos u opcional búsqueda
+    if (req.query.username) where.username = { [Op.iLike]: `%${req.query.username}%` };
+    if (req.query.email) where.email = { [Op.iLike]: `%${req.query.email}%` };
+    if (req.query.search || req.query.q) {
+      const term = String(req.query.search || req.query.q);
+      where[Op.or] = [
+        { username: { [Op.iLike]: `%${term}%` } },
+        { email: { [Op.iLike]: `%${term}%` } },
+      ];
+    }
+
     const { count, rows: users } = await User.findAndCountAll({
       where,
       attributes,
       order,
       limit,
       offset,
-      include: [
-        {
-          model: Profile,
-          as: 'profile',
-          required: false
-        }
-      ]
     });
 
-    // Construir objeto de paginación
     const pagination = {};
     const endIndex = page * limit;
     const totalPages = Math.ceil(count / limit);
+    if (endIndex < count) pagination.next = { page: page + 1, limit };
+    if (offset > 0) pagination.prev = { page: page - 1, limit };
 
-    if (endIndex < count) {
-      pagination.next = {
-        page: page + 1,
-        limit
-      };
-    }
-
-    if (offset > 0) {
-      pagination.prev = {
-        page: page - 1,
-        limit
-      };
-    }
-
-    // Enviar respuesta
     res.status(200).json({
       success: true,
       count: users.length,
       pagination,
       total: count,
       totalPages,
-      data: users
+      data: users,
     });
   } catch (error) {
-    console.error('Error al obtener usuarios:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Error al obtener los usuarios' 
-    });
+    console.error('Error al obtener usuarios:', error?.message);
+    if (error?.name) console.error('Nombre del error:', error.name);
+    if (error?.original?.message) console.error('DB error:', error.original.message);
+    if (error?.stack) console.error(error.stack);
+    res.status(500).json({ success: false, error: 'Error al obtener los usuarios' });
   }
 };
 
-// @desc    Obtener un solo usuario
-// @route   GET /api/users/:id
+// @desc    Obtener usuarios con rol "user" (Clientes)
+// @route   GET /api/users/clients
 // @access  Private/Admin
-exports.getUser = async (req, res, next) => {
+exports.getClients = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).populate('profile');
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 25;
+    const offset = (page - 1) * limit;
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
+    // Orden seguro usando nombres reales del modelo
+    const camelToSnake = (s) => s.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+    const createdAtField = User.rawAttributes?.createdAt?.field || 'created_at';
+    const updatedAtField = User.rawAttributes?.updatedAt?.field || 'updated_at';
+    const mapSortField = (f) => {
+      if (f === 'createdAt') return createdAtField;
+      if (f === 'updatedAt') return updatedAtField;
+      return camelToSnake(f);
+    };
+    let order = [[createdAtField, 'DESC']];
+    if (req.query.sort) {
+      const sortFields = req.query.sort.split(',');
+      order = sortFields.map((field) => {
+        let dir = 'ASC';
+        if (field.startsWith('-')) {
+          field = field.substring(1);
+          dir = 'DESC';
+        }
+        return [mapSortField(field), dir];
       });
     }
+
+    const { count, rows } = await User.findAndCountAll({
+      where: { role: 'user' },
+      attributes: { exclude: ['password'] },
+      order,
+      limit,
+      offset,
+    });
+
+    const pagination = {};
+    const endIndex = page * limit;
+    const totalPages = Math.ceil(count / limit);
+    if (endIndex < count) pagination.next = { page: page + 1, limit };
+    if (offset > 0) pagination.prev = { page: page - 1, limit };
 
     res.status(200).json({
       success: true,
-      data: user
+      count: rows.length,
+      pagination,
+      total: count,
+      totalPages,
+      data: rows,
     });
   } catch (error) {
-    console.error('Error al obtener usuario:', error);
-    
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
+    console.error('Error al obtener clientes:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener los clientes' });
+  }
+};
+
+// @desc    Resumen de roles con miembros por rol
+// @route   GET /api/users/roles-summary
+// @access  Private/Admin
+exports.getRolesSummary = async (req, res) => {
+  try {
+    const roles = ['admin', 'agency', 'model', 'user'];
+
+    const result = {};
+    for (const role of roles) {
+      const createdAtField = User.rawAttributes?.createdAt?.field || 'created_at';
+      const members = await User.findAll({
+        where: { role },
+        attributes: { exclude: ['password'] },
+        order: [[createdAtField, 'DESC']],
       });
+      result[role] = {
+        count: members.length,
+        members,
+      };
     }
-    
-    res.status(500).json({ 
-      success: false, 
-      error: 'Error al obtener el usuario' 
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error al obtener resumen de roles:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener el resumen de roles' });
+  }
+};
+
+// @desc    Obtener usuario por ID
+// @route   GET /api/users/:id
+// @access  Private/Admin
+exports.getUserById = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.params.id, {
+      attributes: { exclude: ['password'] },
     });
+    if (!user) {
+      return res.status(404).json({ success: false, error: `Usuario no encontrado con el id ${req.params.id}` });
+    }
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    console.error('Error al obtener usuario:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener el usuario' });
+  }
+};
+
+// @desc    Obtener usuario actual
+// @route   GET /api/users/me
+// @access  Private
+exports.getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] } });
+    if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    console.error('Error al obtener el usuario actual:', error);
+    res.status(500).json({ success: false, error: 'Error al obtener el usuario actual' });
   }
 };
 
@@ -140,63 +235,33 @@ exports.getUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.createUser = async (req, res, next) => {
   try {
-    // Validar campos
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { name, email, password, role } = req.body;
+    const { name, username, email, password, role } = req.body;
+    const finalUsername = username || name; // compatibilidad con validadores previos
 
-    // Verificar si el usuario ya existe
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { [Op.or]: [{ email }, { username: finalUsername }] } });
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        error: 'El correo electrónico ya está en uso'
-      });
+      return res.status(400).json({ success: false, error: 'El correo o usuario ya está en uso' });
     }
 
-    // Crear usuario
     const user = await User.create({
-      name,
+      username: finalUsername,
       email,
       password,
       role: role || 'user',
-      isVerified: true // Los usuarios creados por admin se marcan como verificados
+      isVerified: true,
     });
 
-    // Crear perfil vacío
-    const profile = await Profile.create({
-      user: user._id,
-      displayName: user.name
-    });
-
-    // Asignar perfil al usuario
-    user.profile = profile._id;
-    await user.save();
-
-    // Obtener usuario con perfil poblado
-    const userWithProfile = await User.findById(user._id).populate('profile');
-
-    res.status(201).json({
-      success: true,
-      data: userWithProfile
-    });
+    const created = await User.findByPk(user.id, { attributes: { exclude: ['password'] } });
+    res.status(201).json({ success: true, data: created });
   } catch (error) {
     console.error('Error al crear usuario:', error);
-    
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        error: 'El correo electrónico ya está en uso'
-      });
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ success: false, error: 'El correo o usuario ya está en uso' });
     }
-    
-    res.status(500).json({ 
-      success: false, 
-      error: 'Error al crear el usuario' 
-    });
+    res.status(500).json({ success: false, error: 'Error al crear el usuario' });
   }
 };
 
@@ -205,221 +270,168 @@ exports.createUser = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateUser = async (req, res, next) => {
   try {
-    // Validar campos
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    let user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ 
+      success: false, 
+      error: `Usuario no encontrado con el id ${req.params.id}` 
+    });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
+    // Validar email único si se está actualizando
+    if (req.body.email && req.body.email !== user.email) {
+      const existingEmail = await User.findOne({ 
+        where: { email: req.body.email, id: { [Op.ne]: user.id } } 
+      });
+      if (existingEmail) return res.status(400).json({ 
+        success: false, 
+        error: 'El correo electrónico ya está en uso por otro usuario' 
       });
     }
 
-    // Verificar si se está actualizando el correo electrónico
-    if (req.body.email && req.body.email !== user.email) {
-      const existingUser = await User.findOne({ email: req.body.email });
-      if (existingUser && existingUser._id.toString() !== req.params.id) {
-        return res.status(400).json({
-          success: false,
-          error: 'El correo electrónico ya está en uso por otro usuario'
-        });
-      }
+    // Validar username único si se está actualizando
+    if (req.body.username && req.body.username !== user.username) {
+      const existingUsername = await User.findOne({ 
+        where: { username: req.body.username, id: { [Op.ne]: user.id } } 
+      });
+      if (existingUsername) return res.status(400).json({ 
+        success: false, 
+        error: 'El nombre de usuario ya está en uso' 
+      });
     }
 
-    // Actualizar campos
-    const { name, email, role, status, isVerified } = req.body;
-    
-    if (name) user.name = name;
-    if (email) user.email = email;
-    if (role) user.role = role;
-    if (status) user.status = status;
-    if (isVerified !== undefined) user.isVerified = isVerified;
+    // Campos actualizables
+    const updatableFields = [
+      // Información básica
+      'username', 'email', 'role', 'isActive', 'isVerified',
+      // Perfil
+      'fullName', 'bio', 'gender', 'birthDate', 'phone', 'location',
+      'profilePicture', 'coverPhoto',
+      // Dirección de facturación
+      'billingLine1', 'billingLine2', 'billingCity',
+      'billingState', 'billingPostalCode', 'billingCountry'
+    ];
 
-    // Si se actualiza la contraseña
+    // Actualizar campos permitidos
+    updatableFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        user[field] = req.body[field];
+      }
+    });
+
+    // Manejar contraseña por separado (se hashea en el hook)
     if (req.body.password) {
       user.password = req.body.password;
     }
 
     await user.save();
-
-    // Obtener usuario actualizado con perfil
-    user = await User.findById(user._id).populate('profile');
-
-    res.status(200).json({
-      success: true,
-      data: user
+    
+    // Obtener usuario actualizado sin la contraseña
+    const updatedUser = await User.findByPk(user.id, { 
+      attributes: { exclude: ['password'] } 
     });
+    
+    res.status(200).json({ 
+      success: true, 
+      data: updatedUser 
+    });
+    
   } catch (error) {
-    console.error('Error al actualizar usuario:', error);
+    console.error('Error al actualizar usuario:', {
+      error: error.message,
+      stack: error.stack,
+      body: req.body,
+      userId: req.params.id
+    });
     
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
-      });
-    }
-    
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        error: 'El correo electrónico ya está en uso'
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Error de duplicación: El correo o nombre de usuario ya está en uso',
+        details: process.env.NODE_ENV === 'development' ? error.errors : undefined
       });
     }
     
     res.status(500).json({ 
       success: false, 
-      error: 'Error al actualizar el usuario' 
+      error: 'Error al actualizar el perfil del usuario',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// @desc    Eliminar usuario
+// @desc    Eliminar usuario (soft delete -> inactivar)
 // @route   DELETE /api/users/:id
 // @access  Private/Admin
 exports.deleteUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
-      });
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ success: false, error: `Usuario no encontrado con el id ${req.params.id}` });
+    if (user.role === 'admin' && user.email === process.env.ADMIN_EMAIL) {
+      return res.status(403).json({ success: false, error: 'No tienes permiso para eliminar este usuario' });
     }
-
-    // No permitir eliminar la cuenta de administrador principal
-    if (user.role === 'superadmin' && user.email === process.env.ADMIN_EMAIL) {
-      return res.status(403).json({
-        success: false,
-        error: 'No tienes permiso para eliminar este usuario'
-      });
-    }
-
-    // Eliminar perfil asociado si existe
-    if (user.profile) {
-      await Profile.findByIdAndDelete(user.profile);
-    }
-
-    // Marcar como eliminado en lugar de eliminarlo físicamente
-    user.status = 'deleted';
-    user.deletedAt = new Date();
-    user.deletedBy = req.user.id;
+    user.isActive = false;
     await user.save();
-
-    res.status(200).json({
-      success: true,
-      data: {}
-    });
+    res.status(200).json({ success: true, data: {} });
   } catch (error) {
     console.error('Error al eliminar usuario:', error);
-    
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false, 
-      error: 'Error al eliminar el usuario' 
-    });
+    res.status(500).json({ success: false, error: 'Error al eliminar el usuario' });
   }
 };
 
-// @desc    Actualizar perfil de usuario
-// @route   PUT /api/users/:id/profile
-// @access  Private
-exports.updateUserProfile = async (req, res, next) => {
+// @desc    Activar usuario
+// @route   PUT /api/users/:id/activate
+// @access  Private/Admin
+exports.activateUser = async (req, res) => {
   try {
-    // Verificar que el usuario existe
-    const user = await User.findById(req.params.id);
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
-      });
-    }
-
-    // Verificar que el usuario solo pueda actualizar su propio perfil o sea admin
-    if (user._id.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'No tienes permiso para actualizar este perfil'
-      });
-    }
-
-    // Buscar o crear perfil
-    let profile = await Profile.findOne({ user: user._id });
-    
-    if (!profile) {
-      // Crear nuevo perfil si no existe
-      profile = new Profile({
-        user: user._id,
-        displayName: user.name
-      });
-    }
-
-    // Actualizar campos del perfil
-    const {
-      displayName,
-      bio,
-      dateOfBirth,
-      gender,
-      phone,
-      location,
-      website,
-      socialMedia,
-      preferences,
-      settings
-    } = req.body;
-
-    if (displayName !== undefined) profile.displayName = displayName;
-    if (bio !== undefined) profile.bio = bio;
-    if (dateOfBirth !== undefined) profile.dateOfBirth = dateOfBirth;
-    if (gender !== undefined) profile.gender = gender;
-    if (phone !== undefined) profile.phone = phone;
-    if (location !== undefined) profile.location = location;
-    if (website !== undefined) profile.website = website;
-    if (socialMedia !== undefined) profile.socialMedia = socialMedia;
-    if (preferences !== undefined) profile.preferences = preferences;
-    if (settings !== undefined) profile.settings = settings;
-
-    // Guardar perfil
-    await profile.save();
-
-    // Si es el primer perfil del usuario, vincularlo
-    if (!user.profile) {
-      user.profile = profile._id;
-      await user.save();
-    }
-
-    // Obtener usuario con perfil actualizado
-    const updatedUser = await User.findById(user._id).populate('profile');
-
-    res.status(200).json({
-      success: true,
-      data: updatedUser
-    });
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    user.isActive = true;
+    await user.save();
+    const data = await User.findByPk(user.id, { attributes: { exclude: ['password'] } });
+    res.status(200).json({ success: true, data });
   } catch (error) {
-    console.error('Error al actualizar perfil:', error);
-    
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        error: `Usuario no encontrado con el id ${req.params.id}`
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false, 
-      error: 'Error al actualizar el perfil' 
-    });
+    console.error('Error al activar usuario:', error);
+    res.status(500).json({ success: false, error: 'Error al activar el usuario' });
   }
 };
+
+// @desc    Desactivar usuario
+// @route   PUT /api/users/:id/deactivate
+// @access  Private/Admin
+exports.deactivateUser = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    user.isActive = false;
+    await user.save();
+    const data = await User.findByPk(user.id, { attributes: { exclude: ['password'] } });
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('Error al desactivar usuario:', error);
+    res.status(500).json({ success: false, error: 'Error al desactivar el usuario' });
+  }
+};
+
+// @desc    Actualizar contraseña del usuario actual
+// @route   PUT /api/users/update-password
+// @access  Private
+exports.updateUserPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    const match = await user.matchPassword(currentPassword);
+    if (!match) return res.status(400).json({ success: false, error: 'La contraseña actual es incorrecta' });
+    user.password = newPassword;
+    await user.save();
+    res.status(200).json({ success: true, message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    console.error('Error al actualizar contraseña:', error);
+    res.status(500).json({ success: false, error: 'Error al actualizar la contraseña' });
+  }
+};
+
+// Nota: Endpoints relacionados con perfiles y otras colecciones fueron removidos
+// ya que esta base de datos usa Sequelize únicamente con el modelo User definido.

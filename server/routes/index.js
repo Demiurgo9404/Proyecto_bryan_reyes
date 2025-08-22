@@ -4,20 +4,20 @@ const router = express.Router();
 // Importar rutas
 const authRoutes = require('./auth');
 const userRoutes = require('./users');
-const profileRoutes = require('./profiles');
-const sessionRoutes = require('./sessions');
-const contentRoutes = require('./contents');
-const transactionRoutes = require('./transactions');
-const paymentRoutes = require('./payments');
+// const profileRoutes = require('./profiles'); // deshabilitado: depende de modelo inexistente
+// const sessionRoutes = require('./sessions'); // deshabilitado
+// const contentRoutes = require('./contents'); // deshabilitado
+// const transactionRoutes = require('./transactions'); // deshabilitado
+// const paymentRoutes = require('./payments'); // deshabilitado
 
 // Configurar rutas
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
-router.use('/profiles', profileRoutes);
-router.use('/sessions', sessionRoutes);
-router.use('/contents', contentRoutes);
-router.use('/transactions', transactionRoutes);
-router.use('/payments', paymentRoutes);
+// router.use('/profiles', profileRoutes); // deshabilitado hasta implementar modelo Profile en Sequelize
+// router.use('/sessions', sessionRoutes); // deshabilitado
+// router.use('/contents', contentRoutes); // deshabilitado
+// router.use('/transactions', transactionRoutes); // deshabilitado
+// router.use('/payments', paymentRoutes); // deshabilitado
 
 // Ruta de prueba
 router.get('/', (req, res) => {

@@ -1,6 +1,9 @@
+require('dotenv').config();
+
 const { app, server } = require('./app');
 const colors = require('colors');
-const { sequelize, testConnection } = require('./config/database');
+const { testConnection } = require('./config/database');
+const { syncModels } = require('./models');
 
 // Configuración del puerto
 const PORT = process.env.PORT || 5000;
@@ -11,9 +14,8 @@ const startServer = async () => {
     // Probar la conexión a la base de datos
     await testConnection();
     
-    // Sincronizar modelos con la base de datos (esto crea las tablas si no existen)
-    await sequelize.sync({ alter: true });
-    console.log('Modelos sincronizados con la base de datos.'.green.underline);
+    // Sincronizar modelos con la base de datos desde un solo lugar
+    await syncModels();
     
     // Iniciar el servidor
     server.listen(PORT, () => {

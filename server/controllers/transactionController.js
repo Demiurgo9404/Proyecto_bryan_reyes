@@ -1,5 +1,5 @@
 const Transaction = require('../models/Transaction');
-const User = require('../models/User');
+const User = require('../models/User.model');
 const Content = require('../models/Content');
 const Session = require('../models/Session');
 const { validationResult } = require('express-validator');

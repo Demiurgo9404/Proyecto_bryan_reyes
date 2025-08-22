@@ -1,6 +1,6 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const ErrorResponse = require('../utils/errorResponse');
-const User = require('../models/User');
+const User = require('../models/User.model');
 const Transaction = require('../models/Transaction');
 
 // @desc    Create a payment intent

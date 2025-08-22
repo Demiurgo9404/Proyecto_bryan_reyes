@@ -1,8 +1,8 @@
 {
   "development": {
     "username": "postgres",
-    "password": "postgres",
-    "database": "love_rose_db",
+    "password": "Roximar2025",
+    "database": "Love_rose_db",
     "host": "localhost",
     "port": 5432,
     "dialect": "postgres",
@@ -13,8 +13,8 @@
   },
   "test": {
     "username": "postgres",
-    "password": "postgres",
-    "database": "love_rose_test",
+    "password": "Roximar2025",
+    "database": "Love_rose_test",
     "host": "localhost",
     "port": 5432,
     "dialect": "postgres",
@@ -25,8 +25,8 @@
   },
   "production": {
     "username": "postgres",
-    "password": "postgres",
-    "database": "love_rose_prod",
+    "password": "Roximar2025",
+    "database": "Love_rose_prod",
     "host": "localhost",
     "port": 5432,
     "dialect": "postgres",
