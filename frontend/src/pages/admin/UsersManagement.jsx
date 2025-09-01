@@ -21,13 +21,16 @@ const UsersManagement = ({ mode = 'list' }) => {
       setError(null);
       setLoading(true);
       
-      // Usar el nuevo servicio de usuarios
-      const usersList = await userService.getUsers();
+      // Obtener la respuesta del servidor
+      const response = await userService.getUsers();
       
-      // Verificar que la respuesta sea un array
-      if (!Array.isArray(usersList)) {
+      // Verificar que la respuesta tenga el formato esperado
+      if (!response || !response.data) {
         throw new Error('La respuesta del servidor no es válida');
       }
+      
+      // Extraer la lista de usuarios de la respuesta
+      const usersList = response.data;
       
       // Mapear los datos para asegurar un formato consistente
       const formattedUsers = usersList.map(user => ({
@@ -47,11 +50,11 @@ const UsersManagement = ({ mode = 'list' }) => {
       
     } catch (err) {
       console.error('Error al cargar usuarios:', err);
-      const errorMessage = err.response?.data?.message || 'Error al cargar los usuarios. Por favor, intente nuevamente.';
+      const errorMessage = err.response?.data?.error || err.message || 'Error al cargar los usuarios. Por favor, intente nuevamente.';
       setError(errorMessage);
       toast.error(errorMessage);
       setUsers([]);
-      throw err;
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -62,11 +65,11 @@ const UsersManagement = ({ mode = 'list' }) => {
   };
 
   const handleEdit = (userId) => {
-    navigate(`/admin/users/${userId}/edit`);
+    navigate(`/admin/usuarios/editar/${userId}`);
   };
 
   const handleView = (userId) => {
-    navigate(`/admin/users/${userId}`);
+    navigate(`/admin/usuarios/${userId}`);
   };
 
   const handleDelete = async (userId) => {
@@ -436,7 +439,7 @@ const UsersManagement = ({ mode = 'list' }) => {
             Actualizar
           </button>
           <Link
-            to="/admin/users/new"
+            to="/admin/usuarios/nuevo"
             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-rose-600 hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500"
           >
             <FaPlus className="-ml-1 mr-2 h-4 w-4" />
@@ -483,7 +486,7 @@ const UsersManagement = ({ mode = 'list' }) => {
             </p>
             <div className="mt-6">
               <Link
-                to="/admin/users/new"
+                to="/admin/usuarios/nuevo"
                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-rose-600 hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500"
               >
                 <FaPlus className="-ml-1 mr-2 h-4 w-4" />

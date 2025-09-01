@@ -2,11 +2,11 @@ require('dotenv').config();
 
 module.exports = {
   development: {
-    username: 'postgres',
-    password: 'Roximar2025', // Database password
-    database: 'Love_rose_db', // Database name
-    host: 'localhost',
-    port: 5432,
+    username: process.env.DB_USER || 'userloverose',
+    password: process.env.DB_PASSWORD || 'Mercurio2025',
+    database: process.env.DB_NAME || 'LoveRoseDB',
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
     dialect: 'postgres',
     logging: console.log,
     // Disable SSL for local development
@@ -15,9 +15,9 @@ module.exports = {
     }
   },
   test: {
-    username: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.TEST_DB_NAME || 'Love_rose_test',
+    username: process.env.DB_USER || 'userloverose',
+    password: process.env.DB_PASSWORD || 'Mercurio2025',
+    database: process.env.TEST_DB_NAME || 'LoveRoseDB_test',
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,
     dialect: 'postgres',

@@ -1,0 +1,502 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { userService } from '../../api/userService';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { 
+  FaCoins, 
+  FaHistory, 
+  FaUserClock, 
+  FaChartLine, 
+  FaUserFriends, 
+  FaArrowLeft, 
+  FaUser, 
+  FaEnvelope, 
+  FaShieldAlt, 
+  FaCalendarAlt, 
+  FaClock,
+  FaSignInAlt,
+  FaSignOutAlt,
+  FaExchangeAlt
+} from 'react-icons/fa';
+
+const UserDetail = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState({
+    user: true,
+    stats: true,
+    transactions: true,
+    activity: true
+  });
+  const [stats, setStats] = useState({
+    coins: 0,
+    totalSpent: 0,
+    loginHours: 0,
+    profileViews: 0,
+    lastLogin: null,
+    memberSince: null,
+    status: 'inactive',
+    role: 'user',
+    loginCount: 0
+  });
+  const [transactions, setTransactions] = useState([]);
+  const [activity, setActivity] = useState([]);
+
+  // Fetch user data
+  const fetchUserData = async () => {
+    try {
+      const userData = await userService.getUserById(id);
+      setUser(userData);
+      setLoading(prev => ({ ...prev, user: false }));
+    } catch (err) {
+      console.error('Error loading user data:', err);
+      setError('Failed to load user information');
+      toast.error('Error loading user data');
+      setLoading(prev => ({ ...prev, user: false }));
+    }
+  };
+
+  // Fetch user statistics
+  const fetchUserStats = async () => {
+    try {
+      const statsData = await userService.getUserStats(id);
+      setStats(prev => ({
+        ...prev,
+        ...statsData.data,
+        coins: statsData.data?.coins || 0,
+        totalSpent: statsData.data?.totalSpent || 0,
+        loginHours: statsData.data?.loginHours || 0,
+        profileViews: statsData.data?.profileViews || 0
+      }));
+      setLoading(prev => ({ ...prev, stats: false }));
+    } catch (err) {
+      console.error('Error loading user stats:', err);
+      toast.error('Error loading user statistics');
+      setLoading(prev => ({ ...prev, stats: false }));
+    }
+  };
+
+  // Fetch user transactions
+  const fetchTransactions = async () => {
+    try {
+      const transactionsData = await userService.getUserTransactions(id);
+      setTransactions(transactionsData.data || []);
+      setLoading(prev => ({ ...prev, transactions: false }));
+    } catch (err) {
+      console.error('Error loading transactions:', err);
+      toast.error('Error loading transaction history');
+      setLoading(prev => ({ ...prev, transactions: false }));
+    }
+  };
+
+  // Fetch user activity
+  const fetchActivity = async () => {
+    try {
+      const activityData = await userService.getUserActivity(id);
+      setActivity(activityData.data || []);
+      setLoading(prev => ({ ...prev, activity: false }));
+    } catch (err) {
+      console.error('Error loading activity:', err);
+      toast.error('Error loading activity log');
+      setLoading(prev => ({ ...prev, activity: false }));
+    }
+  };
+
+  // Load all data when component mounts
+  useEffect(() => {
+    const loadAllData = async () => {
+      await Promise.all([
+        fetchUserData(),
+        fetchUserStats(),
+        fetchTransactions(),
+        fetchActivity()
+      ]);
+    };
+
+    loadAllData();
+  }, [id]);
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+
+  // Format date and time
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'Never';
+    const options = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return new Date(dateString).toLocaleDateString('es-ES', options);
+  };
+
+  // Render loading state
+  const renderLoader = () => (
+    <div className="flex justify-center items-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+  );
+
+  // Render error state
+  const renderError = (message) => (
+    <div className="bg-red-50 border-l-4 border-red-400 p-4">
+      <div className="flex">
+        <div className="flex-shrink-0">
+          <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <div className="ml-3">
+          <p className="text-sm text-red-700">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render stat card
+  const renderStatCard = (icon, title, value, color = 'blue') => (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <div className="flex items-center">
+        <div className={`p-3 rounded-full bg-${color}-100 text-${color}-600`}>
+          {icon}
+        </div>
+        <div className="ml-4">
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-semibold text-gray-900">{value}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render profile card
+  const renderProfileCard = () => (
+    <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="px-6 py-4">
+        <div className="flex items-center">
+          <div className="flex-shrink-0 h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
+            <FaUser className="h-8 w-8 text-gray-500" />
+          </div>
+          <div className="ml-4">
+            <h2 className="text-xl font-semibold text-gray-900">{user.username}</h2>
+            <p className="text-sm text-gray-600">{user.email}</p>
+            <div className="mt-1 flex items-center">
+              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {user.is_active ? 'Active' : 'Inactive'}
+              </span>
+              <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                {user.role === 'admin' ? 'Administrator' : 'User'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="border-t border-gray-200 px-6 py-4">
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+          <div className="sm:col-span-1">
+            <dt className="text-sm font-medium text-gray-500">Member since</dt>
+            <dd className="mt-1 text-sm text-gray-900">{formatDate(user.created_at)}</dd>
+          </div>
+          <div className="sm:col-span-1">
+            <dt className="text-sm font-medium text-gray-500">Last login</dt>
+            <dd className="mt-1 text-sm text-gray-900">{formatDateTime(user.last_login)}</dd>
+          </div>
+          <div className="sm:col-span-2">
+            <dt className="text-sm font-medium text-gray-500">Verification status</dt>
+            <dd className="mt-1 text-sm text-gray-900">
+              {user.is_verified ? 'Verified account' : 'Account not verified'}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  );
+
+  // Render transactions table
+  const renderTransactionsTable = () => (
+    <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900">Transaction History</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Date
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Description
+              </th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Amount
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {transactions.length > 0 ? (
+              transactions.map((tx) => (
+                <tr key={tx.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {formatDateTime(tx.created_at)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {tx.description || 'Transaction'}
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${
+                    tx.amount >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {tx.amount >= 0 ? '+' : ''}{formatCurrency(tx.amount)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      tx.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      tx.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {tx.status === 'completed' ? 'Completed' : 
+                       tx.status === 'pending' ? 'Pending' : 'Failed'}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
+                  No transactions found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // Render activity feed
+  const renderActivityFeed = () => (
+    <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900">Recent Activity</h3>
+      </div>
+      <div className="flow-root">
+        <ul className="divide-y divide-gray-200">
+          {activity.length > 0 ? (
+            activity.map((act) => (
+              <li key={act.id} className="px-6 py-4 hover:bg-gray-50">
+                <div className="flex items-center">
+                  <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
+                    act.action === 'login' ? 'bg-green-100 text-green-600' :
+                    act.action === 'logout' ? 'bg-gray-100 text-gray-600' :
+                    'bg-blue-100 text-blue-600'
+                  }`}>
+                    {act.action === 'login' ? (
+                      <FaSignInAlt className="h-5 w-5" />
+                    ) : act.action === 'logout' ? (
+                      <FaSignOutAlt className="h-5 w-5" />
+                    ) : (
+                      <FaExchangeAlt className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-900">
+                      {act.description || 'User activity'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formatDateTime(act.created_at)}
+                    </p>
+                    {act.metadata && (
+                      <div className="mt-1 text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                        <pre className="whitespace-pre-wrap overflow-x-auto">
+                          {JSON.stringify(act.metadata, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))
+          ) : (
+            <li className="px-6 py-4 text-center text-sm text-gray-500">
+              No recent activity to display
+            </li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+
+  // Show loading state
+  if (loading.user && !user) {
+    return renderLoader();
+  }
+
+  // Show error state
+  if (error) {
+    return renderError(error);
+  }
+
+  // Show not found state
+  if (!user) {
+    return (
+      <div className="text-center py-12">
+        <h3 className="text-lg font-medium text-gray-900">User not found</h3>
+        <p className="mt-1 text-sm text-gray-500">The user you're looking for doesn't exist or you don't have permission to view it.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-50 min-h-screen py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center mb-6">
+            <button
+              onClick={() => navigate(-1)}
+              className="mr-4 p-2 rounded-full hover:bg-gray-200 text-gray-700 hover:text-gray-900"
+              title="Go back"
+            >
+              <FaArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">User Details</h1>
+          </div>
+          
+          {/* Tabs */}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`${
+                  activeTab === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab('transactions')}
+                className={`${
+                  activeTab === 'transactions'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Transactions
+              </button>
+              <button
+                onClick={() => setActiveTab('activity')}
+                className={`${
+                  activeTab === 'activity'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Activity
+              </button>
+            </nav>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="space-y-6">
+          {activeTab === 'overview' && (
+            <>
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {renderStatCard(
+                  <FaCoins className="h-6 w-6" />,
+                  'Coins',
+                  formatCurrency(stats.coins || 0),
+                  'yellow'
+                )}
+                {renderStatCard(
+                  <FaChartLine className="h-6 w-6" />,
+                  'Total Spent',
+                  formatCurrency(stats.totalSpent || 0),
+                  'green'
+                )}
+                {renderStatCard(
+                  <FaUserClock className="h-6 w-6" />,
+                  'Online Hours',
+                  `${stats.loginHours?.toFixed(1) || 0} hrs`,
+                  'blue'
+                )}
+                {renderStatCard(
+                  <FaUserFriends className="h-6 w-6" />,
+                  'Profile Views',
+                  stats.profileViews?.toLocaleString() || '0',
+                  'purple'
+                )}
+              </div>
+
+              {/* Profile and Recent Activity */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {renderProfileCard()}
+                
+                {/* Recent Activity (mini) */}
+                <div className="bg-white shadow rounded-lg overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-lg font-medium text-gray-900">Recent Activity</h3>
+                  </div>
+                  <div className="flow-root">
+                    <ul className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                      {activity.slice(0, 5).map((act) => (
+                        <li key={act.id} className="px-6 py-3 hover:bg-gray-50">
+                          <div className="flex items-center">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-gray-900 truncate">
+                                {act.description}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatDateTime(act.created_at)}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                      {activity.length === 0 && (
+                        <li className="px-6 py-4 text-center text-sm text-gray-500">
+                          No recent activity
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'transactions' && renderTransactionsTable()}
+          {activeTab === 'activity' && renderActivityFeed()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default UserDetail;

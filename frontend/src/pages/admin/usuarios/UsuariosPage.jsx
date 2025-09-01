@@ -10,49 +10,65 @@ const UsuariosPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
 
-  // Cargar usuarios al montar el componente
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Verificar si hay un token antes de hacer la petición
-        const token = localStorage.getItem('token');
-        if (!token) {
-          window.location.href = '/login';
-          return;
-        }
-        
-        const response = await usersApi.list();
-        
-        // Verificar la estructura de la respuesta
-        if (response && Array.isArray(response)) {
-          setUsers(response);
-        } else if (response && response.data && Array.isArray(response.data)) {
-          // En caso de que la respuesta venga con un wrapper 'data'
-          setUsers(response.data);
-        } else {
-          console.error('Formato de respuesta inesperado:', response);
-          setError('Formato de respuesta inesperado del servidor');
-        }
-      } catch (err) {
-        console.error('Error al cargar usuarios:', err);
-        
-        // Si el error es de autenticación, ya se maneja en el interceptor
-        if (err.message.includes('sesión ha expirado') || 
-            err.message.includes('No se encontró el token')) {
-          return; // El interceptor ya redirigirá al login
-        }
-        
-        // Mostrar mensaje de error al usuario
-        setError(err.message || 'Error al cargar los usuarios. Por favor, intente nuevamente.');
-      } finally {
-        setLoading(false);
+  // Función para cargar usuarios
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Verificar si hay un token antes de hacer la petición
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = '/login';
+        return;
       }
-    };
+      
+      const response = await usersApi.list();
+      
+      // Verificar la estructura de la respuesta
+      if (response && Array.isArray(response)) {
+        setUsers(response);
+      } else if (response && response.data && Array.isArray(response.data)) {
+        // En caso de que la respuesta venga con un wrapper 'data'
+        setUsers(response.data);
+      } else {
+        console.error('Formato de respuesta inesperado:', response);
+        setError('Formato de respuesta inesperado del servidor');
+      }
+    } catch (err) {
+      console.error('Error al cargar usuarios:', err);
+      
+      // Si el error es de autenticación, ya se maneja en el interceptor
+      if (err.message.includes('sesión ha expirado') || 
+          err.message.includes('No se encontró el token')) {
+        return; // El interceptor ya redirigirá al login
+      }
+      
+      // Mostrar mensaje de error al usuario
+      setError(err.message || 'Error al cargar los usuarios. Por favor, intente nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Cargar usuarios al montar el componente y configurar el event listener
+  useEffect(() => {
+    // Función para manejar la actualización de usuarios
+    const handleUsersUpdated = () => {
+      console.log('Evento users-updated recibido, actualizando lista de usuarios...');
+      loadUsers();
+    };
+    
+    // Cargar usuarios iniciales
     loadUsers();
+    
+    // Agregar event listener para actualizaciones
+    window.addEventListener('users-updated', handleUsersUpdated);
+    
+    // Limpiar el event listener al desmontar el componente
+    return () => {
+      window.removeEventListener('users-updated', handleUsersUpdated);
+    };
   }, []);
 
   // Filtrar usuarios por término de búsqueda y rol

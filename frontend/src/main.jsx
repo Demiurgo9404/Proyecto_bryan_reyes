@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import App from './App.jsx';
+import App from './App';
 import './styles/main.css';
 
 // Componente de carga personalizado

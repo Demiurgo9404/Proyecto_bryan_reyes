@@ -20,119 +20,160 @@ export const AuthProvider = ({ children }) => {
 
   // Check if there's an authenticated user when the app loads
   useEffect(() => {
+    let isMounted = true;
+    
     const init = async () => {
+      if (!isMounted) return;
+      
+      console.log('[Auth] Iniciando verificación de autenticación...');
       setLoading(true);
+      const storedUser = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token');
+      
+      console.log('[Auth] Datos almacenados:', { 
+        hasToken: !!storedToken, 
+        hasUser: !!storedUser,
+        user: storedUser ? JSON.parse(storedUser) : null
+      });
+      
+      // If no token, clear everything and stop
+      if (!storedToken) {
+        console.log('[Auth] No se encontró token, limpiando datos de autenticación');
+        clearAuthData(setUser, setToken);
+        setLoading(false);
+        return;
+      }
+      
       try {
-        const storedUser = localStorage.getItem('user');
-        const storedToken = localStorage.getItem('token');
+        console.log('[Auth] Verificando token con el servidor...');
+        // Try to get fresh user data
+        const me = await authApi.getMe(storedToken);
+        console.log('[Auth] Respuesta de verificación de token:', me);
         
-        if (storedToken) {
-          try {
-            // First, try to get fresh user data
-            const me = await authApi.getMe(storedToken);
-            const meUser = me?.data || me?.user || me;
-            
-            if (meUser && meUser.id) {  // Ensure we have a valid user with ID
-              setUser(meUser);
-              setToken(storedToken);
-              localStorage.setItem('user', JSON.stringify(meUser));
-              localStorage.setItem('token', storedToken);
-              return; // Successfully authenticated
-            } else {
-              throw new Error('Invalid user data received');
-            }
-          } catch (error) {
-            console.error('Error fetching user data:', error);
-            // Clear auth data on any error
-            clearAuthData(setUser, setToken);
-            return;
-          }
+        const meUser = me?.data || me?.user || me;
+        
+        if (meUser?.id) {
+          console.log('[Auth] Usuario autenticado correctamente:', {
+            id: meUser.id,
+            email: meUser.email,
+            role: meUser.role
+          });
           
-          // If we get here, we have a token but couldn't refresh user data
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
+          if (isMounted) {
+            setUser(meUser);
             setToken(storedToken);
-          } else {
-            // No stored user data, clear auth
-            clearAuthData(setUser, setToken);
+            localStorage.setItem('user', JSON.stringify(meUser));
+            console.log('[Auth] Estado de autenticación actualizado');
           }
-        } else {
-          // No token, clear any existing auth data
+          return;
+        }
+        
+        throw new Error('Datos de usuario inválidos recibidos del servidor');
+      } catch (error) {
+        console.error('[Auth] Error al verificar autenticación:', error);
+        if (isMounted) {
+          console.log('[Auth] Limpiando datos de autenticación debido a error');
           clearAuthData(setUser, setToken);
         }
-      } catch (err) {
-        console.error('Authentication error:', err);
-        clearAuthData(setUser, setToken);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          console.log('[Auth] Finalizando verificación de autenticación');
+          setLoading(false);
+        }
       }
     };
     
     init();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Function to login
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      console.log('Iniciando proceso de login para:', email);
-      setLoading(true);
-      setError(null);
-      
-      // Clear any existing auth data
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setUser(null);
-      setToken(null);
-      
-      console.log('Realizando petición de login...');
+      console.log('[Auth] Enviando credenciales al servidor...');
       const response = await authApi.login(email, password);
-      console.log('Respuesta del servidor:', response);
+      console.log('[Auth] Respuesta del servidor:', response);
       
-      if (!response) {
-        throw new Error('No se recibió respuesta del servidor');
+      // Extraer token y datos del usuario de la respuesta
+      const authToken = response.token;
+      let userData = response.user;
+      
+      if (!authToken) {
+        console.error('[Auth] No se recibió token en la respuesta:', response);
+        throw new Error('No se pudo obtener el token de autenticación');
       }
       
-      if (!response.token) {
-        throw new Error('No se recibió el token de autenticación');
+      if (!userData) {
+        console.error('[Auth] No se recibieron datos del usuario:', response);
+        throw new Error('No se pudieron obtener los datos del usuario');
       }
       
-      if (!response.user) {
-        throw new Error('No se recibieron los datos del usuario');
+      // Asegurarse de que userData es un objeto
+      if (typeof userData !== 'object' || userData === null) {
+        console.warn('[Auth] Los datos del usuario no son un objeto válido, creando uno nuevo');
+        userData = { email };
       }
       
-      // Ensure we have required user data
-      if (!response.user.id) {
-        console.error('Datos de usuario incompletos - Falta ID:', response.user);
-        throw new Error('Datos de usuario incompletos');
+      // Asegurar campos requeridos
+      if (!userData.role) {
+        console.warn('[Auth] No se especificó un rol para el usuario, usando valor por defecto');
+        userData.role = 'user'; // Valor por defecto
       }
       
-      if (!response.user.email) {
-        console.error('Datos de usuario incompletos - Falta email:', response.user);
-        throw new Error('Se requiere una dirección de correo electrónico');
+      // Para el rol 'model', asegurar campos requeridos
+      if (userData.role === 'model') {
+        userData.is_active = userData.is_active !== false; // true si no está definido
+        userData.is_verified = userData.is_verified !== false; // true si no está definido
       }
       
-      console.log('Guardando datos de autenticación...');
-      // Save to localStorage first
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      console.log('[Auth] Datos del usuario después del procesamiento:', {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        is_verified: userData.is_verified,
+        is_active: userData.is_active
+      });
       
-      // Then update state
-      setToken(response.token);
-      setUser(response.user);
+      // Guardar token y datos del usuario
+      localStorage.setItem('token', authToken);
+      localStorage.setItem('user', JSON.stringify(userData));
       
-      return response.user;
+      // Actualizar el estado
+      setToken(authToken);
+      setUser(userData);
+      
+      console.log('[Auth] Login exitoso para el usuario:', {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        is_verified: userData.is_verified,
+        is_active: userData.is_active
+      });
+      
+      // Devolver los datos del usuario
+      return { 
+        success: true, 
+        user: userData, 
+        token: authToken 
+      };
       
     } catch (error) {
-      console.error('Error logging in:', error);
-      // Clear authentication data in case of error
-      clearAuthData(setUser, setToken);
-      const errorMessage = error.response?.data?.message || error.message || 'Error logging in. Please check your credentials.';
+      console.error('Error en el login:', error);
+      const errorMessage = error.message || 'Error al iniciar sesión. Por favor verifica tus credenciales.';
       setError(errorMessage);
-      throw new Error(errorMessage);
+      // Clear any partial state on error
+      clearAuthData(setUser, setToken);
+      throw error;
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading, setError, setToken, setUser]);
 
   // Function to clear auth state
   const clearAuth = useCallback((redirectToLogin = true) => {
@@ -166,48 +207,132 @@ export const AuthProvider = ({ children }) => {
   logoutRef.current = logout;
 
   // Check if the user is authenticated
-  const isAuthenticated = useCallback(() => {
-    // Check if we have a token and user in state
-    if (!token || !user || !user.id) {
-      // If state is out of sync with localStorage, check there too
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
+  const isAuthenticated = useCallback(async (checkExpiration = true) => {
+    console.log('[Auth] Verificando autenticación...');
+    
+    // Si ya estamos cargando, retornar el estado actual
+    if (loading) {
+      console.log('[Auth] Verificación en progreso, omitiendo...');
+      return !!user && !!token;
+    }
+
+    // Verificar si ya tenemos un usuario y token en el estado
+    if (token && user?.id) {
+      console.log('[Auth] Usuario encontrado en el estado');
       
-      if (storedToken && storedUser) {
+      if (checkExpiration) {
         try {
-          const parsedUser = JSON.parse(storedUser);
-          if (parsedUser?.id) {
-            // Update state to match localStorage
-            setToken(storedToken);
-            setUser(parsedUser);
-            return true;
+          // Verificar token
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          console.log('[Auth] Payload del token:', payload);
+          
+          // Verificar expiración
+          if (payload.exp && payload.exp * 1000 < Date.now()) {
+            console.warn('[Auth] Token expirado');
+            await logoutRef.current?.(false);
+            return false;
           }
+          
+          // Verificar estado del usuario
+          if (user.is_active === false) {
+            console.warn('[Auth] Usuario inactivo');
+            await logoutRef.current?.(false);
+            return false;
+          }
+          
+          if (user.is_verified === false) {
+            console.warn('[Auth] Usuario no verificado');
+            return false;
+          }
+          
+          console.log('[Auth] Usuario autenticado correctamente');
+          return true;
+          
         } catch (e) {
-          console.error('Error parsing stored user:', e);
+          console.error('[Auth] Error validando token del estado:', e);
+          // Continuar con la verificación del localStorage
         }
+      } else {
+        return true;
+      }
+    }
+    
+    // Si no hay token en el estado, verificar localStorage
+    console.log('[Auth] No se encontró usuario en el estado, revisando localStorage...');
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (!storedToken || !storedUser) {
+      console.log('[Auth] No se encontró token o usuario en localStorage');
+      // Limpiar cualquier estado parcial si localStorage está vacío
+      if (token || user) {
+        console.log('[Auth] Limpiando estado de autenticación...');
+        clearAuthData(setUser, setToken);
       }
       return false;
     }
     
-    // Then validate the token
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      
-      // Check if token is expired
-      if (payload.exp && payload.exp * 1000 < Date.now()) {
-        // Token expired
-        logoutRef.current?.(false); // Don't redirect yet
+    // Validar token desde localStorage
+    if (checkExpiration) {
+      try {
+        console.log('[Auth] Validando token de localStorage...');
+        const payload = JSON.parse(atob(storedToken.split('.')[1]));
+        console.log('[Auth] Payload del token (localStorage):', payload);
+        
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          console.warn('[Auth] Token de localStorage expirado');
+          await logoutRef.current?.(false);
+          return false;
+        }
+        
+        // Actualizar el estado con los datos del localStorage
+        const userData = JSON.parse(storedUser);
+        
+        // Verificar que el usuario esté activo y verificado
+        if (userData.is_active === false) {
+          console.warn('[Auth] Usuario inactivo (desde localStorage)');
+          await logoutRef.current?.(false);
+          return false;
+        }
+        
+        if (userData.is_verified === false) {
+          console.warn('[Auth] Usuario no verificado (desde localStorage)');
+          return false;
+        }
+        
+        // Actualizar el estado con los datos del localStorage
+        setToken(storedToken);
+        setUser(userData);
+        
+        console.log('[Auth] Usuario autenticado desde localStorage');
+        return true;
+        
+      } catch (e) {
+        console.error('[Auth] Error validando token de localStorage:', e);
+        await logoutRef.current?.(false);
         return false;
       }
-      
-      // Token is valid
-      return true;
-    } catch (e) {
-      console.error('Token validation error:', e);
-      clearAuth(false); // Don't redirect yet
-      return false;
     }
-  }, [token, user, clearAuth]);
+    
+    // Update state with data from localStorage
+    try {
+      const parsedUser = JSON.parse(storedUser);
+      if (parsedUser?.id) {
+        // Use setTimeout to avoid state updates during render
+        setTimeout(() => {
+          setToken(storedToken);
+          setUser(parsedUser);
+        }, 0);
+        return true;
+      }
+    } catch (e) {
+      console.error('Error parsing stored user:', e);
+    }
+    
+    // If we get here, something is wrong with the stored data
+    logoutRef.current?.(false);
+    return false;
+  }, [token, user]);
 
   // Check if the user is an administrator
   const isAdmin = useCallback(() => {

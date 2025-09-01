@@ -1,11 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
-import { FaHome, FaHeart, FaComment, FaUserShield, FaSignOutAlt } from 'react-icons/fa';
+import { FaHome, FaHeart, FaComment, FaUserShield, FaSignOutAlt, FaCoins, FaHistory } from 'react-icons/fa';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Navbar = ({ onLogout }) => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isModel } = useAuth();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-indigo-50 to-blue-50 shadow-lg border-t-2 border-indigo-100 z-40">
@@ -40,6 +40,28 @@ const Navbar = ({ onLogout }) => {
           </div>
           <span className="text-xs mt-1 text-indigo-700 font-medium">Messages</span>
         </Link>
+        
+        <Link 
+          to="/app/coins" 
+          className="flex flex-col items-center p-2 rounded-xl hover:bg-indigo-100/50 transition-all duration-200 group"
+        >
+          <div className="p-2 bg-white rounded-full shadow-sm group-hover:bg-indigo-100 transition-colors duration-200">
+            <FaCoins className="text-xl text-yellow-500" />
+          </div>
+          <span className="text-xs mt-1 text-indigo-700 font-medium">Monedas</span>
+        </Link>
+        
+        {isModel() && (
+          <Link 
+            to="/app/earnings" 
+            className="flex flex-col items-center p-2 rounded-xl hover:bg-indigo-100/50 transition-all duration-200 group"
+          >
+            <div className="p-2 bg-white rounded-full shadow-sm group-hover:bg-indigo-100 transition-colors duration-200">
+              <FaHistory className="text-xl text-green-500" />
+            </div>
+            <span className="text-xs mt-1 text-indigo-700 font-medium">Ganancias</span>
+          </Link>
+        )}
         
         {isAdmin() && (
           <Link 

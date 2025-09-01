@@ -1,0 +1,261 @@
+/* LoveRose Dashboard Styles */
+.loverose-container {
+  min-height: 100vh;
+  background-color: #fafafa;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.loverose-header {
+  position: sticky;
+  top: 0;
+  background-color: #ffffff;
+  border-bottom: 1px solid #dbdbdb;
+  padding: 0 16px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 100;
+}
+
+.loverose-logo {
+  font-size: 24px;
+  font-weight: bold;
+  color: #262626;
+  text-decoration: none;
+}
+
+.loverose-sidebar {
+  position: fixed;
+  left: 0;
+  top: 54px;
+  width: 245px;
+  height: calc(100vh - 54px);
+  background-color: #ffffff;
+  border-right: 1px solid #dbdbdb;
+  padding: 20px 0;
+}
+
+.loverose-nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  color: #262626;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 400;
+  transition: background-color 0.2s;
+}
+
+.loverose-nav-item:hover {
+  background-color: #fafafa;
+}
+
+.loverose-nav-item.active {
+  font-weight: 600;
+}
+
+.loverose-nav-icon {
+  margin-right: 16px;
+  width: 24px;
+  height: 24px;
+}
+
+.loverose-main-content {
+  margin-left: 245px;
+  padding: 20px;
+  max-width: 935px;
+}
+
+.loverose-stories-container {
+  background-color: #ffffff;
+  border: 1px solid #dbdbdb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.loverose-story-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 16px;
+  cursor: pointer;
+}
+
+.loverose-story-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid #dbdbdb;
+  padding: 2px;
+}
+
+.loverose-story-username {
+  font-size: 12px;
+  color: #262626;
+  margin-top: 4px;
+  text-align: center;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loverose-post {
+  background-color: #ffffff;
+  border: 1px solid #dbdbdb;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.loverose-post-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.loverose-post-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-right: 12px;
+}
+
+.loverose-post-username {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  text-decoration: none;
+}
+
+.loverose-post-image {
+  width: 100%;
+  max-height: 600px;
+  object-fit: cover;
+}
+
+.loverose-post-actions {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+}
+
+.loverose-action-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 8px;
+}
+
+.loverose-post-likes {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  padding: 0 16px;
+  margin-bottom: 8px;
+}
+
+.loverose-post-caption {
+  padding: 0 16px;
+  margin-bottom: 8px;
+}
+
+.loverose-post-username-caption {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  margin-right: 8px;
+}
+
+.loverose-post-text {
+  font-size: 14px;
+  color: #262626;
+  line-height: 18px;
+}
+
+.loverose-post-time {
+  font-size: 10px;
+  color: #8e8e8e;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  padding: 0 16px;
+  margin-bottom: 16px;
+}
+
+.loverose-suggestions {
+  background-color: #ffffff;
+  border: 1px solid #dbdbdb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.loverose-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.loverose-suggestion-info {
+  display: flex;
+  align-items: center;
+}
+
+.loverose-suggestion-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-right: 12px;
+}
+
+.loverose-suggestion-username {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.loverose-suggestion-subtitle {
+  font-size: 12px;
+  color: #8e8e8e;
+}
+
+.loverose-follow-button {
+  background: none;
+  border: none;
+  color: #0095f6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loverose-follow-button:hover {
+  color: #00376b;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .loverose-sidebar {
+    width: 72px;
+  }
+  
+  .loverose-main-content {
+    margin-left: 72px;
+  }
+  
+  .loverose-nav-item span {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .loverose-sidebar {
+    display: none;
+  }
+  
+  .loverose-main-content {
+    margin-left: 0;
+    padding: 10px;
+  }
+}

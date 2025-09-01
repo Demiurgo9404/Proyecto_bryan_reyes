@@ -1,0 +1,399 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { 
+  FaUser, 
+  FaSearch, 
+  FaSortAmountDown, 
+  FaSortAmountUp,
+  FaEye,
+  FaEdit,
+  FaUserCheck,
+  FaUserTimes,
+  FaTimes
+} from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const ClientDashboard = () => {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [editingUser, setEditingUser] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      if (!token) return;
+      
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/users/clients?page=${currentPage}&limit=${itemsPerPage}`, 
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        if (!response.ok) {
+          throw new Error('Error al cargar los clientes');
+        }
+        
+        const { data, total, totalPages } = await response.json();
+        setClients(Array.isArray(data) ? data : []);
+        setTotalPages(totalPages || Math.ceil(total / itemsPerPage));
+      } catch (error) {
+        console.error('Error al cargar clientes:', error);
+        toast.error(error.message || 'Error al cargar la lista de clientes');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClients();
+  }, [token, currentPage]);
+
+  const handleEdit = (user) => (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log('Editando usuario:', user.id);
+    setEditingUser(user);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const filteredClients = clients.filter(client => {
+    return (
+      client.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.username?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  const sortedClients = [...filteredClients].sort((a, b) => {
+    if (a[sortConfig.key] < b[sortConfig.key]) {
+      return sortConfig.direction === 'asc' ? -1 : 1;
+    }
+    if (a[sortConfig.key] > b[sortConfig.key]) {
+      return sortConfig.direction === 'asc' ? 1 : -1;
+    }
+    return 0;
+  });
+
+  const toggleUserStatus = async (userId, currentStatus) => {
+    if (!window.confirm(`¿Estás seguro de ${currentStatus === 'active' ? 'desactivar' : 'activar'} este usuario?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/users/${userId}/status`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ is_active: currentStatus !== 'active' })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar el estado del usuario');
+      }
+
+      // Actualizar el estado local
+      setClients(clients.map(client => 
+        client.id === userId 
+          ? { ...client, is_active: currentStatus !== 'active' } 
+          : client
+      ));
+
+      toast.success(`Usuario ${currentStatus === 'active' ? 'desactivado' : 'activado'} correctamente`);
+    } catch (error) {
+      console.error('Error al cambiar el estado del usuario:', error);
+      toast.error(error.message || 'Error al actualizar el estado del usuario');
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const options = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return new Date(dateString).toLocaleDateString('es-ES', options);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8 relative">
+      {/* Edit User Modal */}
+      {isEditModalOpen && editingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center bg-indigo-700 text-white p-4 rounded-t-lg">
+              <h3 className="text-lg font-semibold">Editar Usuario</h3>
+              <button 
+                onClick={handleCloseEditModal}
+                className="text-white hover:text-gray-200"
+              >
+                <FaTimes className="h-5 w-5" />
+              </button>
+            </div>
+            <EditUserForm 
+              key={editingUser.id} // Forzar recreación del componente
+              userId={editingUser.id} 
+              onClose={handleCloseEditModal} 
+            />
+          </div>
+        </div>
+      )}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4 md:mb-0">Dashboard de Clientes</h1>
+        <div className="relative w-full md:w-64">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <FaSearch className="text-gray-400" />
+          </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            placeholder="Buscar clientes..."
+            value={searchTerm}
+            onChange={handleSearch}
+          />
+        </div>
+      </div>
+
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => handleSort('full_name')}
+                >
+                  <div className="flex items-center">
+                    Nombre
+                    {sortConfig.key === 'full_name' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? <FaSortAmountUp /> : <FaSortAmountDown />}
+                      </span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => handleSort('email')}
+                >
+                  <div className="flex items-center">
+                    Email
+                    {sortConfig.key === 'email' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? <FaSortAmountUp /> : <FaSortAmountDown />}
+                      </span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Estado
+                </th>
+                <th 
+                  scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => handleSort('created_at')}
+                >
+                  <div className="flex items-center">
+                    Fecha de Registro
+                    {sortConfig.key === 'created_at' && (
+                      <span className="ml-1">
+                        {sortConfig.direction === 'asc' ? <FaSortAmountUp /> : <FaSortAmountDown />}
+                      </span>
+                    )}
+                  </div>
+                </th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {sortedClients.length > 0 ? (
+                sortedClients.map((client) => (
+                  <tr key={client.id} className="hover:bg-gray-50">
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap hover:bg-gray-100 cursor-pointer"
+                      onClick={() => navigate(`/admin/usuarios/${client.id}`)}
+                    >
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <FaUser className="h-10 w-10 rounded-full text-gray-400" />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {client.full_name || 'No especificado'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            @{client.username}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hover:bg-gray-100 cursor-pointer"
+                      onClick={() => navigate(`/admin/usuarios/${client.id}`)}
+                    >
+                      {client.email}
+                    </td>
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap hover:bg-gray-100 cursor-pointer"
+                      onClick={() => navigate(`/admin/usuarios/${client.id}`)}
+                    >
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {client.is_active ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hover:bg-gray-100 cursor-pointer"
+                      onClick={() => navigate(`/admin/usuarios/${client.id}`)}
+                    >
+                      {formatDate(client.created_at)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => navigate(`/admin/usuarios/${client.id}`)}
+                            <FaUserTimes className="h-5 w-5" />
+                          ) : (
+                            <FaUserCheck className="h-5 w-5" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+                    No se encontraron clientes.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Paginación */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className={`ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                Siguiente
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Mostrando página <span className="font-medium">{currentPage}</span> de <span className="font-medium">{totalPages}</span>
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${currentPage === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <span className="sr-only">Anterior</span>
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${currentPage === pageNum ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${currentPage === totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <span className="sr-only">Siguiente</span>
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ClientDashboard;

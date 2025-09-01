@@ -1,43 +1,42 @@
 {
-    "name": "love-rose",
-    "version": "1.0.0",
-    "description": "LoveRose - AplicaciÃ³n de citas con videollamadas",
-    "main": "server/server.js",
-    "scripts": {
-        "start": "node server/server.js",
-        "build": null
-    },
-    "keywords": [
-        "dating",
-        "videochat",
-        "social",
-        "node"
-    ],
-    "author": "Bryan Reyes",
-    "license": "ISC",
-    "dependencies": {
-        "bcryptjs": "^3.0.2",
-        "colors": "^1.4.0",
-        "cookie-parser": "^1.4.7",
-        "cors": "^2.8.5",
-        "crypto-js": "^4.1.1",
-        "dotenv": "^17.2.1",
-        "express": "^4.18.2",
-        "express-fileupload": "^1.5.2",
-        "express-rate-limit": "^8.0.1",
-        "express-validator": "^7.0.1",
-        "helmet": "^8.1.0",
-        "hpp": "^0.2.3",
-        "jsonwebtoken": "^9.0.2",
-        "morgan": "^1.10.1",
-        "nodemailer": "^6.9.1",
-        "pg": "^8.16.3",
-        "pg-hstore": "^2.3.4",
-        "sequelize": "^6.37.7",
-        "sequelize-cli": "^6.6.3",
-        "socket.io": "^4.7.2",
-        "stripe": "^18.4.0",
-        "uuid": "^9.0.0",
-        "xss-clean": "^0.1.4"
-    }
+  "name": "loverose-backend",
+  "version": "1.0.0",
+  "description": "Backend para LoveRose - Plataforma de red social",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "setup-db": "node scripts/setup-database.js",
+    "check-db": "node scripts/check-db-connection.js",
+    "migrate": "psql -h localhost -U postgres -d Love_rose_db -f scripts/create-database-schema.sql",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "frontend:preview": "cd frontend && npm run preview"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.35.1",
+    "bcrypt": "^5.1.1",
+    "multer": "^1.4.5-lts.1",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "social-media",
+    "backend",
+    "api",
+    "postgresql",
+    "express"
+  ],
+  "author": "LoveRose Team",
+  "license": "MIT"
 }

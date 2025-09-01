@@ -95,6 +95,14 @@ const apiRequest = async (endpoint, options = {}) => {
   // Get current token (skip expiration check to prevent immediate logout)
   const token = getToken(true);
   
+  // Set default headers
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...(options.headers || {})
+  };
+
   // For non-auth endpoints, ensure we have a valid token
   if (!isAuthEndpoint) {
     if (!token) {
@@ -120,17 +128,17 @@ const apiRequest = async (endpoint, options = {}) => {
   }
 
   // Request configuration
-  const { method = 'GET', headers = {}, body, ...restOptions } = options;
-  
+  const { method = 'GET', headers: optionsHeaders, body, ...restOptions } = options;
   const requestOptions = {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...headers
-    },
-    ...(body && { body: JSON.stringify(body) }),
-    ...restOptions
+    method: options.method || 'GET',
+    headers: optionsHeaders,
+    credentials: 'include', // Important for CORS with credentials
+    mode: 'cors', // Enable CORS mode
+    ...restOptions,
+    // Ensure body is properly stringified if it's an object and not already a string
+    ...(options.body && typeof options.body === 'object' && !(options.body instanceof FormData)
+      ? { body: JSON.stringify(options.body) }
+      : { body: options.body })
   };
 
   // Log the request (only in development)
@@ -218,42 +226,67 @@ const apiRequest = async (endpoint, options = {}) => {
 export const authApi = {
   login: async (email, password) => {
     try {
-      console.log('Enviando credenciales al servidor...');
+      console.log('[Auth] Enviando credenciales al servidor...');
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
-        credentials: 'include' // Importante para manejar cookies
+        credentials: 'include'
       });
 
-      console.log('Respuesta HTTP recibida:', {
+      console.log('[Auth] Respuesta HTTP recibida:', {
         status: response.status,
-        statusText: response.statusText
+        statusText: response.statusText,
+        ok: response.ok
       });
 
-      const data = await handleResponse(response);
-      console.log('Datos de respuesta procesados:', data);
+      // Manejar errores HTTP
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[Auth] Error en la respuesta del servidor:', errorData);
+        const error = new Error(errorData.message || 'Error en la autenticación');
+        error.status = response.status;
+        throw error;
+      }
+
+      const data = await response.json();
+      console.log('[Auth] Datos de respuesta procesados:', data);
 
       if (!data) {
         throw new Error('No se recibieron datos del servidor');
       }
 
-      if (!data.token) {
-        console.error('No se recibió token en la respuesta:', data);
-        throw new Error(data.message || 'Credenciales inválidas');
+      // Verificar si hay un error en la respuesta
+      if (data.success === false) {
+        console.error('[Auth] Error en la respuesta:', data);
+        throw new Error(data.error || 'Error en la autenticación');
       }
 
-      if (!data.user) {
-        console.error('No se recibieron datos del usuario en la respuesta:', data);
-        throw new Error('Datos de usuario no recibidos');
+      // Asegurarse de que tenemos el token y los datos del usuario
+      const authToken = data.token || data.data?.token;
+      const userData = data.user || data.data?.user || data.data;
+
+      if (!authToken) {
+        console.error('[Auth] No se recibió token en la respuesta:', data);
+        throw new Error('No se pudo obtener el token de autenticación');
       }
 
-      console.log('Login exitoso para el usuario:', data.user.email);
+      if (!userData) {
+        console.error('[Auth] No se recibieron datos del usuario:', data);
+        throw new Error('No se pudieron obtener los datos del usuario');
+      }
+
+      console.log('[Auth] Login exitoso para el usuario:', {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role
+      });
+
       return {
-        token: data.token,
-        user: data.user
+        token: authToken,
+        user: userData
       };
     } catch (error) {
       console.error('Error en login:', {
@@ -307,6 +340,82 @@ export const authApi = {
     return apiRequest('/auth/logout', {
       method: 'POST'
     });
+  },
+
+  // Generic authenticated request method
+  request: async ({ url, method = 'GET', data = null, params = null }) => {
+    try {
+      let fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
+      
+      if (params) {
+        const searchParams = new URLSearchParams(params);
+        fullUrl += `?${searchParams}`;
+      }
+
+      const options = {
+        method,
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      };
+
+      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+        options.body = JSON.stringify(data);
+      }
+
+      const response = await fetch(fullUrl, options);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+
+      const responseData = await response.json();
+      return { data: responseData };
+    } catch (error) {
+      console.error(`Error in authApi.request ${method} ${url}:`, error);
+      
+      // Handle authentication errors
+      if (error.status === 401 || error.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.href = '/login?session=expired';
+        }
+      }
+      
+      throw error;
+    }
+  }
+};
+
+// API de agencia
+export const agencyApi = {
+  // Obtener modelos de la agencia con estadísticas
+  getAgencyModels: async () => {
+    try {
+      const response = await apiRequest('/agency/models');
+      return response;
+    } catch (error) {
+      console.error('Error fetching agency models:', error);
+      throw error;
+    }
+  },
+
+  // Actualizar estado de un modelo
+  updateModelStatus: async (modelId, status) => {
+    try {
+      const response = await apiRequest(`/agency/models/${modelId}/status`, {
+        method: 'PUT',
+        body: { status }
+      });
+      return response;
+    } catch (error) {
+      console.error('Error updating model status:', error);
+      throw error;
+    }
   }
 };
 
@@ -368,10 +477,58 @@ export const usersApi = {
   // Actualizar usuario
   update: async (id, userData) => {
     if (!id || !userData) throw new Error('Se requiere ID y datos de usuario');
-    return apiRequest(`/users/${id}`, {
-      method: 'PUT',
-      body: userData
-    });
+    
+    console.log('Updating user with data:', JSON.stringify(userData, null, 2));
+    
+    const token = getToken(true);
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    try {
+      console.log(`[DEBUG] Sending PUT request to: ${API_BASE}/users/${id}`);
+      const response = await fetch(`${API_BASE}/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(userData)
+      });
+
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log('[DEBUG] Server response:', response.status, responseData);
+      } catch (e) {
+        console.error('[DEBUG] Failed to parse JSON response:', e);
+        throw new Error(`Error al procesar la respuesta del servidor: ${e.message}`);
+      }
+
+      if (!response.ok) {
+        const error = new Error(responseData.message || 'Error al actualizar el usuario');
+        error.status = response.status;
+        error.data = responseData;
+        console.error('[DEBUG] Server error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseData
+        });
+        throw error;
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error('Error in usersApi.update:', {
+        message: error.message,
+        status: error.status,
+        data: error.data,
+        stack: error.stack
+      });
+      throw error;
+    }
   },
   
   // Eliminar usuario

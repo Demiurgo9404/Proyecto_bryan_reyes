@@ -1,0 +1,25 @@
+{
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "esmodules": true,
+        "node": "current"
+      },
+      "modules": false,
+      "useBuiltIns": "usage",
+      "corejs": 3
+    }],
+    ["@babel/preset-react", {
+      "runtime": "automatic",
+      "importSource": "@emotion/react"
+    }]
+  ],
+  "plugins": [
+    ["@babel/plugin-transform-runtime", {
+      "regenerator": true,
+      "useESModules": true,
+      "corejs": 3
+    }],
+    "@emotion/babel-plugin"
+  ]
+}
