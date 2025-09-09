@@ -1,170 +1,274 @@
-using System.Security.Claims;
-using LoveRose.Core.Enums;
-using LoveRose.Core.Application.DTOs.Auth;
-using LoveRose.Core.Models;
-using LoveRose.Core.Services;
+using System;
+using System.Threading.Tasks;
+using LoveRose.Core.Dtos.Auth;
+using LoveRose.Core.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 
-namespace LoveRose.API.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-[Route("api/auth")]
-public class AuthController : ControllerBase
+namespace LoveRose.API.Controllers
 {
-    private readonly IAuthService _authService;
-    private readonly ILogger<AuthController> _logger;
-
-    public AuthController(
-        IAuthService authService,
-        ILogger<AuthController> logger)
+    [ApiController]
+    [Route("api/[controller]")]
+    [Produces("application/json")]
+    public class AuthController : ControllerBase
     {
-        _authService = authService;
-        _logger = logger;
-    }
+        private readonly IAuthService _authService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-    [HttpPost("login")]
-    [Route("login")]
-    public async Task<IActionResult> Login([FromBody] LoginDto model)
-    {
-        try
+        public AuthController(
+            IAuthService authService,
+            IHttpContextAccessor httpContextAccessor)
         {
-            var (success, token, refreshToken, error, user) = await _authService.LoginAsync(model.Email, model.Password);
-            
-            if (!success)
-                return Unauthorized(new { message = error });
+            _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+            _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
+        }
 
-            return Ok(new 
-            { 
-                token, 
-                refreshToken,
-                user = new 
+        [HttpPost("login")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(AuthErrorResponse))]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(AuthErrorResponse))]
+        public async Task<IActionResult> Login([FromBody] AuthRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new AuthErrorResponse
                 {
-                    id = user.Id,
-                    email = user.Email,
-                    firstName = user.FirstName,
-                    lastName = user.LastName,
-                    roles = await _authService.GetUserRolesAsync(user.Id)
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error durante el inicio de sesión");
-            return StatusCode(500, new { message = "Error interno del servidor" });
-        }
-    }
+                    Error = "Invalid request",
+                    Errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    )
+                });
+            }
 
-    [HttpPost("refresh-token")]
-    [Route("refresh-token")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto request)
-    {
-        try
-        {
-            var (success, token, refreshToken, error) = await _authService.RefreshTokenAsync(
-                request.Token, 
-                request.RefreshToken);
+            var ipAddress = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+            var response = await _authService.LoginAsync(request, ipAddress);
 
-            if (!success)
-                return BadRequest(new { message = error });
-
-            return Ok(new { token, refreshToken });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al refrescar el token");
-            return StatusCode(500, new { message = "Error interno del servidor" });
-        }
-    }
-
-    [Authorize(Roles = "Admin,SuperAdmin")]
-    [HttpPost("assign-role")]
-    [Route("assign-role")]
-    public async Task<IActionResult> AssignRole([FromBody] AssignRoleDto model)
-    {
-        try
-        {
-            var success = await _authService.AssignRoleAsync(model.UserId, model.Role);
-            
-            if (!success)
-                return BadRequest(new { message = "No se pudo asignar el rol al usuario" });
-
-            return Ok(new { message = "Rol asignado correctamente" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al asignar rol");
-            return StatusCode(500, new { message = "Error interno del servidor" });
-        }
-    }
-
-    [Authorize]
-    [HttpGet("me")]
-    [Route("me")]
-    public async Task<IActionResult> GetCurrentUser()
-    {
-        try
-        {
-            var userId = User.FindFirst(ClaimTypes.Name)?.Value;
-            if (string.IsNullOrEmpty(userId))
-                return Unauthorized();
-
-            var user = await _authService.GetUserAsync(userId);
-            if (user == null)
-                return NotFound(new { message = "Usuario no encontrado" });
-
-            var roles = await _authService.GetUserRolesAsync(userId);
-
-            return Ok(new 
+            if (!string.IsNullOrEmpty(response.Error))
             {
-                id = user.Id,
-                email = user.Email,
-                firstName = user.FirstName,
-                lastName = user.LastName,
-                roles = roles
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al obtener el usuario actual");
-            return StatusCode(500, new { message = "Error interno del servidor" });
-        }
-    }
+                return Unauthorized(new AuthErrorResponse
+                {
+                    Error = response.Error,
+                    ErrorDescription = response.Error
+                });
+            }
 
-    [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterDto model)
-    {
-        try
+            return Ok(response);
+        }
+
+        [HttpPost("register")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(AuthErrorResponse))]
+        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
-            var user = new User
+            if (!ModelState.IsValid)
             {
-                UserName = model.Email,
-                Email = model.Email,
-                FirstName = model.FirstName,
-                LastName = model.LastName,
-                DateOfBirth = model.DateOfBirth,
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true
-            };
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Invalid request",
+                    Errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    )
+                });
+            }
 
-            var result = await _authService.RegisterAsync(user, model.Password);
+            var ipAddress = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+            var response = await _authService.RegisterAsync(request, ipAddress);
 
-            if (!result.Succeeded)
-                return BadRequest(result.Errors);
+            if (!string.IsNullOrEmpty(response.Error))
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = response.Error,
+                    Errors = response.Errors
+                });
+            }
 
-            // Asignar rol por defecto
-            await _authService.AssignRoleAsync(user.Id, UserRole.User);
-
-            _logger.LogInformation("Usuario registrado exitosamente: {Email}", model.Email);
-            return Ok(new { message = "Usuario registrado exitosamente" });
+            return Ok(response);
         }
-        catch (Exception ex)
+
+        [HttpPost("refresh-token")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(AuthErrorResponse))]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized, Type = typeof(AuthErrorResponse))]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
         {
-            _logger.LogError(ex, "Error al registrar usuario");
-            return StatusCode(500, new { message = "Error interno del servidor" });
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Invalid request",
+                    Errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    )
+                });
+            }
+
+            var ipAddress = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+            var response = await _authService.RefreshTokenAsync(request, ipAddress);
+
+            if (!string.IsNullOrEmpty(response.Error))
+            {
+                return Unauthorized(new AuthErrorResponse
+                {
+                    Error = response.Error,
+                    ErrorDescription = response.Error
+                });
+            }
+
+            return Ok(response);
+        }
+
+        [HttpPost("revoke-token")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(AuthErrorResponse))]
+        public async Task<IActionResult> RevokeToken([FromBody] string refreshToken)
+        {
+            if (string.IsNullOrEmpty(refreshToken))
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Token is required"
+                });
+            }
+
+            var ipAddress = _httpContextAccessor.HttpContext?.Connection?.RemoteIpAddress?.ToString();
+            var result = await _authService.RevokeTokenAsync(refreshToken, ipAddress);
+
+            if (!result)
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Invalid token"
+                });
+            }
+
+            return Ok();
+        }
+
+        [HttpPost("logout")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> Logout()
+        {
+            var userId = User.FindFirst("sub")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                await _authService.LogoutAsync(userId);
+            }
+
+            return Ok();
+        }
+
+        [HttpPost("forgot-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Invalid request",
+                    Errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    )
+                });
+            }
+
+            await _authService.ForgotPasswordAsync(request.Email);
+            return Ok();
+        }
+
+        [HttpPost("reset-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(AuthErrorResponse))]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Invalid request",
+                    Errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    )
+                });
+            }
+
+            var result = await _authService.ResetPasswordAsync(request.Email, request.Token, request.NewPassword);
+            if (!result)
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Failed to reset password"
+                });
+            }
+
+            return Ok();
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(AuthErrorResponse))]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Invalid request",
+                    Errors = ModelState.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    )
+                });
+            }
+
+            var userId = User.FindFirst("sub")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var result = await _authService.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword);
+
+            if (!result)
+            {
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = "Failed to change password"
+                });
+            }
+
+            return Ok();
+        }
+
+        [HttpGet("check-email")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(bool))]
+        public async Task<IActionResult> CheckEmailAvailability([FromQuery] string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return BadRequest(new { error = "Email is required" });
+            }
+
+            var isAvailable = await _authService.IsEmailAvailableAsync(email);
+            return Ok(new { isAvailable });
+        }
+
+        [HttpGet("check-username")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(bool))]
+        public async Task<IActionResult> CheckUsernameAvailability([FromQuery] string username)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                return BadRequest(new { error = "Username is required" });
+            }
+
+            var isAvailable = await _authService.IsUsernameAvailableAsync(username);
+            return Ok(new { isAvailable });
         }
     }
 }

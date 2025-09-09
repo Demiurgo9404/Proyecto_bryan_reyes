@@ -21,7 +21,18 @@ export default defineConfig(({ command, mode }) => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src')
+        '@': path.resolve(__dirname, './src'),
+        '@api': path.resolve(__dirname, './src/api'),
+        '@assets': path.resolve(__dirname, './src/assets'),
+        '@components': path.resolve(__dirname, './src/components'),
+        '@config': path.resolve(__dirname, './src/config'),
+        '@contexts': path.resolve(__dirname, './src/contexts'),
+        '@hooks': path.resolve(__dirname, './src/hooks'),
+        '@pages': path.resolve(__dirname, './src/pages'),
+        '@services': path.resolve(__dirname, './src/services'),
+        '@styles': path.resolve(__dirname, './src/styles'),
+        '@types': path.resolve(__dirname, './src/types'),
+        '@utils': path.resolve(__dirname, './src/utils')
       }
     },
     server: {
@@ -43,7 +54,14 @@ export default defineConfig(({ command, mode }) => {
           ws: true,
           rewrite: (path) => path.replace(/^\/api/, '')
         }
-      } : undefined,
+      } : {
+        '/api': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api/, '')
+        }
+      },
       fs: {
         strict: false
       }
@@ -54,11 +72,17 @@ export default defineConfig(({ command, mode }) => {
       assetsDir: 'assets',
       sourcemap: mode !== 'production',
       minify: mode === 'production' ? 'terser' : false,
+      terserOptions: {
+        compress: {
+          drop_console: mode === 'production',
+          drop_debugger: mode === 'production'
+        }
+      },
       rollupOptions: {
         output: {
           manualChunks: {
             react: ['react', 'react-dom', 'react-router-dom'],
-            mui: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+            mui: ['@mui/material', '@emotion/react', '@emotion/styled'],
             vendor: ['axios', 'date-fns', 'react-hook-form']
           }
         }
@@ -87,7 +111,7 @@ export default defineConfig(({ command, mode }) => {
       }
     },
     optimizeDeps: {
-      include: ['@mui/material', '@emotion/react', '@emotion/styled']
+      include: ['@mui/material', '@emotion/react', '@emotion/styled', 'react', 'react-dom', 'react-router-dom']
     }
   };
 });

@@ -1,0 +1,6 @@
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Core\obj\Debug\net8.0\LoveRose.Core.csproj.AssemblyReference.cache
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Core\obj\Debug\net8.0\LoveRose.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Core\obj\Debug\net8.0\LoveRose.Core.AssemblyInfoInputs.cache
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Core\obj\Debug\net8.0\LoveRose.Core.AssemblyInfo.cs
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Core\obj\Debug\net8.0\LoveRose.Core.csproj.CoreCompileInputs.cache
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Core\obj\Debug\net8.0\LoveRose.Core.sourcelink.json

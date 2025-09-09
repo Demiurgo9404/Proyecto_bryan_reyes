@@ -1,0 +1,12 @@
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\bin\Debug\net8.0\LoveRose.Data.deps.json
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\bin\Debug\net8.0\LoveRose.Data.dll
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\bin\Debug\net8.0\LoveRose.Data.pdb
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\LoveRose.Data.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\LoveRose.Data.AssemblyInfoInputs.cache
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\LoveRose.Data.AssemblyInfo.cs
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\LoveRose.Data.csproj.CoreCompileInputs.cache
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\LoveRose.Data.sourcelink.json
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\LoveRose.Data.dll
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\refint\LoveRose.Data.dll
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\LoveRose.Data.pdb
+C:\Users\Demiurgo\Documents\GitHub\love_rose\src\LoveRose.Data\obj\Debug\net8.0\ref\LoveRose.Data.dll

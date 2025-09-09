@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "d5DwpYe10qo=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Demiurgo\\Documents\\GitHub\\love_rose\\src\\LoveRose.Data\\LoveRose.Data.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Demiurgo\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.18\\microsoft.windowsdesktop.app.ref.8.0.18.nupkg.sha512",
+    "C:\\Users\\Demiurgo\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.18\\microsoft.netcore.app.ref.8.0.18.nupkg.sha512",
+    "C:\\Users\\Demiurgo\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.18\\microsoft.aspnetcore.app.ref.8.0.18.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -1,17 +1,15 @@
 // Configuración global para pruebas
 import '@testing-library/jest-dom';
 import { configure } from '@testing-library/react';
+import { ReactElement } from 'react';
 
 // Configuración de react-testing-library
-configure({
-  testIdAttribute: 'data-testid',
-  // Otras configuraciones específicas para tus pruebas
-});
+configure({ testIdAttribute: 'data-testid' });
 
-// Mocks globales
+// Mock de window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation((query) => ({
+  value: jest.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
@@ -23,25 +21,24 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Configuración de localStorage mock
-const localStorageMock = (function () {
+// Mock de localStorage
+const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
-    getItem: function (key: string) {
+    getItem(key: string) {
       return store[key] || null;
     },
-    setItem: function (key: string, value: string) {
+    setItem(key: string, value: string) {
       store[key] = value.toString();
     },
-    removeItem: function (key: string) {
+    removeItem(key: string) {
       delete store[key];
     },
-    clear: function () {
+    clear() {
       store = {};
     },
-    key: function (index: number) {
-      const keys = Object.keys(store);
-      return keys[index] || null;
+    key(index: number) {
+      return Object.keys(store)[index] || null;
     },
     get length() {
       return Object.keys(store).length;
@@ -51,10 +48,8 @@ const localStorageMock = (function () {
 
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
+  writable: true,
 });
-
-// Configuración de fetch mock
-global.fetch = jest.fn() as jest.Mock;
 
 // Mock de react-router-dom
 jest.mock('react-router-dom', () => ({
@@ -78,7 +73,9 @@ jest.mock('react-toastify', () => ({
     warn: jest.fn(),
     dismiss: jest.fn(),
   },
-  ToastContainer: () => <div data-testid="toast-container" />,
+  ToastContainer: function MockToastContainer(): ReactElement {
+    return <div data-testid="toast-container" />;
+  },
 }));
 
 // Configuración de Axios mock
@@ -93,36 +90,53 @@ jest.mock('axios', () => ({
       response: { use: jest.fn(), eject: jest.fn() },
     },
   })),
-  isAxiosError: jest.fn(),
+  get: jest.fn(),
+  post: jest.fn(),
+  put: jest.fn(),
+  delete: jest.fn(),
 }));
 
-// Configuración de console para pruebas
+// Mock de módulos que pueden causar problemas en pruebas
+jest.mock('react-lazy-load-image-component', () => ({
+  LazyLoadImage: ({ src, alt }: { src: string; alt: string }) => (
+    <img src={src} alt={alt} data-testid="lazy-image" />
+  ),
+}));
+
+// Suprimir advertencias específicas de React
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 
-beforeAll(() => {
-  // Suprimir advertencias específicas de React
-  const noop = () => {};
-  
-  console.error = (...args) => {
-    // Suprimir errores específicos que no son relevantes para las pruebas
-    if (args[0]?.includes('React does not recognize the')) {
-      return;
-    }
-    originalConsoleError(...args);
-  };
+const noop = () => {};
 
-  console.warn = (...args) => {
-    // Suprimir advertencias específicas que no son relevantes para las pruebas
-    if (args[0]?.includes('A component is changing an uncontrolled input')) {
-      return;
-    }
-    originalConsoleWarn(...args);
-  };
-});
+console.error = (...args: any[]) => {
+  // Suprimir errores específicos de estilos en pruebas
+  if (args[0]?.includes('Warning: [antd:')) {
+    return noop();
+  }
+  originalConsoleError(...args);
+};
+
+console.warn = (...args: any[]) => {
+  // Suprimir advertencias específicas
+  if (args[0]?.includes('componentWillReceiveProps')) {
+    return noop();
+  }
+  originalConsoleWarn(...args);
+};
 
 afterAll(() => {
   // Restaurar console original después de las pruebas
   console.error = originalConsoleError;
   console.warn = originalConsoleWarn;
 });
+
+// Configuración de fetch global
+// @ts-ignore
+global.fetch = jest.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({}),
+    text: () => Promise.resolve(''),
+  })
+) as jest.Mock;

@@ -1,58 +1,59 @@
-const { Sequelize } = require('sequelize');
-const config = require('../config/config.js');
+const { Pool } = require('pg');
+const config = require('../src/LoveRose.API/appsettings.json');
 
-const env = process.env.NODE_ENV || 'development';
-const dbConfig = config[env];
-
-console.log('🔍 Verificando conexión a la base de datos...');
-console.log(`Entorno: ${env}`);
-console.log(`Base de datos: ${dbConfig.database}`);
-console.log(`Host: ${dbConfig.host}:${dbConfig.port}`);
-
-const sequelize = new Sequelize(
-  dbConfig.database,
-  dbConfig.username,
-  dbConfig.password,
-  {
-    host: dbConfig.host,
-    port: dbConfig.port,
-    dialect: dbConfig.dialect,
-    logging: false,
-    dialectOptions: dbConfig.dialectOptions || {}
-  }
-);
+const pool = new Pool({
+  connectionString: config.ConnectionStrings.DefaultConnection,
+  ssl: false
+});
 
 async function checkConnection() {
   try {
-    await sequelize.authenticate();
-    console.log('✅ Conexión a la base de datos establecida correctamente.');
+    const client = await pool.connect();
+    console.log('✅ Conexión exitosa a PostgreSQL');
     
-    // Verificar si la base de datos existe y tiene tablas
-    const [results] = await sequelize.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      ORDER BY table_name;
-    `);
+    // Verificar si la base de datos existe
+    const dbRes = await client.query(
+      "SELECT datname FROM pg_database WHERE datname = 'LoveRoseDB'"
+    );
     
-    console.log('\n📋 Tablas existentes en la base de datos:');
-    if (results.length === 0) {
-      console.log('❌ No se encontraron tablas en la base de datos.');
+    if (dbRes.rows.length === 0) {
+      console.log('⚠️  La base de datos LoveRoseDB no existe');
+      console.log('Ejecuta el siguiente comando para crearla:');
+      console.log('createdb -U postgres LoveRoseDB');
     } else {
-      results.forEach((table, index) => {
-        console.log(`${index + 1}. ${table.table_name}`);
-      });
+      console.log('✅ Base de datos LoveRoseDB encontrada');
+      
+      // Verificar tablas principales
+      const tablesRes = await client.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public';
+      `);
+      
+      if (tablesRes.rows.length === 0) {
+        console.log('ℹ️  No se encontraron tablas en la base de datos');
+        console.log('Ejecuta las migraciones con:');
+        console.log('cd src/LoveRose.API');
+        console.log('dotnet ef database update');
+      } else {
+        console.log('\nTablas encontradas:');
+        tablesRes.rows.forEach(row => {
+          console.log(`- ${row.table_name}`);
+        });
+      }
     }
     
-    return true;
-  } catch (error) {
-    console.error('❌ Error al conectar con la base de datos:', error.message);
-    return false;
+    client.release();
+  } catch (err) {
+    console.error('❌ Error al conectar a la base de datos:', err.message);
+    console.log('\nSolución de problemas:');
+    console.log('1. Verifica que PostgreSQL esté en ejecución');
+    console.log('2. Verifica las credenciales en appsettings.json');
+    console.log('3. Asegúrate de que el usuario tenga permisos');
   } finally {
-    await sequelize.close();
+    await pool.end();
+    process.exit();
   }
 }
 
-checkConnection().then(success => {
-  process.exit(success ? 0 : 1);
-});
+checkConnection();

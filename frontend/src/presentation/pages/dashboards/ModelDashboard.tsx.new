@@ -1,0 +1,302 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Box, 
+  Typography, 
+  Avatar, 
+  IconButton, 
+  Badge,
+  Button,
+  Divider,
+  CircularProgress,
+  Menu,
+  MenuItem,
+  ListItemIcon
+} from '@mui/material';
+import { 
+  Home, 
+  Explore, 
+  Notifications, 
+  Favorite,
+  Settings,
+  Message,
+  ExitToApp
+} from '@mui/icons-material';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+
+// Interfaces
+interface Story {
+  id: string;
+  username: string;
+  avatar: string;
+  isViewed: boolean;
+  isOwn?: boolean;
+}
+
+interface Post {
+  id: string;
+  username: string;
+  avatar: string;
+  image: string;
+  caption: string;
+  likes: number;
+  comments: number;
+  isLiked: boolean;
+  isBookmarked: boolean;
+  timeAgo: string;
+  location?: string;
+}
+
+interface ActiveModel {
+  id: string;
+  username: string;
+  avatar: string;
+  category: string;
+  isOnline: boolean;
+  viewers: number;
+  viewerCount?: number;
+  isLiked: boolean;
+  isLive?: boolean;
+  streamUrl?: string;
+}
+
+const ModelDashboard: React.FC = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  // State
+  const [activeSection, setActiveSection] = useState<string>('inicio');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [showNotificationsPanel, setShowNotificationsPanel] = useState<boolean>(false);
+  const [showMessagesPanel, setShowMessagesPanel] = useState<boolean>(false);
+  const [activeModels, setActiveModels] = useState<ActiveModel[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+
+  // Menu handlers
+  const handleAvatarMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleAvatarMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
+  const openMenu = Boolean(anchorEl);
+
+  // Navigation
+  const handleSectionChange = (section: string) => {
+    setActiveSection(section);
+  };
+
+  // Render section content based on active section
+  const renderSectionContent = () => {
+    switch (activeSection) {
+      case 'inicio':
+        return renderInicioContent();
+      case 'explorar':
+        return renderExplorarContent();
+      case 'mensajes':
+        return renderMensajesContent();
+      case 'favoritos':
+        return renderFavoritosContent();
+      case 'configuracion':
+        return renderConfiguracionContent();
+      default:
+        return renderInicioContent();
+    }
+  };
+
+  // Section renderers
+  const renderInicioContent = () => (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>Inicio</Typography>
+      {/* Add inicio content here */}
+    </Box>
+  );
+
+  const renderExplorarContent = () => (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>Explorar Modelos</Typography>
+      {/* Add explorar content here */}
+    </Box>
+  );
+
+  const renderMensajesContent = () => (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>Mensajes</Typography>
+      {/* Add mensajes content here */}
+    </Box>
+  );
+
+  const renderFavoritosContent = () => (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>Favoritos</Typography>
+      {/* Add favoritos content here */}
+    </Box>
+  );
+
+  const renderConfiguracionContent = () => (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>Configuración</Typography>
+      {/* Add configuración content here */}
+    </Box>
+  );
+
+  // Loading state
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* Header */}
+      <Box sx={{ bgcolor: 'background.paper', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="h6" fontWeight="bold">
+            LoveRose
+          </Typography>
+          <Box>
+            <IconButton color="inherit" onClick={() => setShowNotificationsPanel(true)}>
+              <Badge badgeContent={4} color="error">
+                <Notifications />
+              </Badge>
+            </IconButton>
+            <IconButton color="inherit" onClick={() => setShowMessagesPanel(true)}>
+              <Message />
+            </IconButton>
+            <IconButton
+              color="inherit"
+              onClick={handleAvatarMenuOpen}
+              aria-controls={openMenu ? 'account-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={openMenu ? 'true' : undefined}
+            >
+              <Avatar src={user?.avatar} alt={user?.username} sx={{ width: 32, height: 32 }} />
+            </IconButton>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Main Content */}
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Sidebar */}
+        <Box
+          sx={{
+            width: 240,
+            bgcolor: 'background.paper',
+            borderRight: '1px solid',
+            borderColor: 'divider',
+            p: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1
+          }}
+        >
+          <Button
+            startIcon={<Home />}
+            fullWidth
+            onClick={() => handleSectionChange('inicio')}
+            variant={activeSection === 'inicio' ? 'contained' : 'text'}
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Inicio
+          </Button>
+          <Button
+            startIcon={<Explore />}
+            fullWidth
+            onClick={() => handleSectionChange('explorar')}
+            variant={activeSection === 'explorar' ? 'contained' : 'text'}
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Explorar
+          </Button>
+          <Button
+            startIcon={<Message />}
+            fullWidth
+            onClick={() => handleSectionChange('mensajes')}
+            variant={activeSection === 'mensajes' ? 'contained' : 'text'}
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Mensajes
+          </Button>
+          <Button
+            startIcon={<Favorite />}
+            fullWidth
+            onClick={() => handleSectionChange('favoritos')}
+            variant={activeSection === 'favoritos' ? 'contained' : 'text'}
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Favoritos
+          </Button>
+          <Button
+            startIcon={<Settings />}
+            fullWidth
+            onClick={() => handleSectionChange('configuracion')}
+            variant={activeSection === 'configuracion' ? 'contained' : 'text'}
+            sx={{ justifyContent: 'flex-start', mt: 'auto' }}
+          >
+            Configuración
+          </Button>
+        </Box>
+
+        {/* Page Content */}
+        <Box sx={{ flex: 1, p: 3, overflowY: 'auto' }}>
+          {renderSectionContent()}
+        </Box>
+      </Box>
+
+      {/* User Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        id="account-menu"
+        open={openMenu}
+        onClose={handleAvatarMenuClose}
+        onClick={handleAvatarMenuClose}
+        PaperProps={{
+          elevation: 0,
+          sx: {
+            overflow: 'visible',
+            filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+            mt: 1.5,
+            '& .MuiAvatar-root': {
+              width: 32,
+              height: 32,
+              ml: -0.5,
+              mr: 1,
+            },
+          },
+        }}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        <MenuItem onClick={() => navigate('/profile')}>
+          <Avatar src={user?.avatar} /> Perfil
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={handleLogout}>
+          <ListItemIcon>
+            <ExitToApp fontSize="small" />
+          </ListItemIcon>
+          Cerrar sesión
+        </MenuItem>
+      </Menu>
+    </Box>
+  );
+};
+
+export default ModelDashboard;

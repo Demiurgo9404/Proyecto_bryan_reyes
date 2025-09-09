@@ -1,454 +1,509 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/presentation/contexts/AuthContext';
+import { useModelService } from '@/presentation/hooks/useModelService';
 import {
   Box,
-  Grid,
+  Button,
   Card,
   CardContent,
+  CircularProgress,
+  Container,
+  Grid,
   Typography,
-  Button,
-  Switch,
-  FormControlLabel,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Avatar,
+  Divider,
   Paper,
+  Tabs,
+  Tab,
   Chip,
-  Rating,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton
+  useTheme,
+  alpha,
+  useMediaQuery,
 } from '@mui/material';
 import {
-  AttachMoney,
-  Schedule,
-  Star,
-  Videocam,
-  Edit,
-  Add,
-  Delete,
-  TrendingUp,
-  Person,
-  AccessTime
+  VideoCall as GoLiveIcon,
+  PhotoLibrary as GalleryIcon,
+  Chat as ChatIcon,
+  Schedule as ScheduleIcon,
+  AttachMoney as EarningsIcon,
+  BarChart as StatsIcon,
+  Notifications as NotificationsIcon,
+  Person as PersonIcon,
+  Edit as EditIcon,
+  Add as AddIcon,
+  Visibility as VisibilityIcon,
+  Star as StarIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import ModelDashboardLayout from '@/presentation/layouts/ModelDashboardLayout';
 
-interface ModelDashboardStats {
+// Interfaces
+export interface ModelProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  email: string;
+  bio: string;
+  profileImage: string;
+  coverImage: string;
+  isOnline: boolean;
+  lastSeen: string;
+  categories: string[];
+  languages: string[];
+  pricePerMinute: number;
+  rating: number;
+  totalSessions: number;
   totalEarnings: number;
-  thisMonth: number;
-  activeConnections: number;
-  scheduledSessions: Array<{
-    id: string;
-    clientName: string;
-    dateTime: string;
-    duration: number;
-    type: string;
-  }>;
-  ratings: {
-    averageRating: number;
-    totalRatings: number;
-  };
-  recentActivity: Array<{
-    id: string;
-    type: string;
-    description: string;
-    timestamp: string;
-  }>;
+  totalViews: number;
+  isFavorite: boolean;
 }
 
-interface AvailabilitySlot {
-  id: string;
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
+interface DashboardStats {
+  totalEarnings: number;
+  totalSessions: number;
+  totalViews: number;
+  rating: number;
+  availableSlots: number;
+  upcomingSessions: number;
 }
 
 const ModelDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState<ModelDashboardStats | null>(null);
-  const [isAvailable, setIsAvailable] = useState(false);
-  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [openAvailabilityDialog, setOpenAvailabilityDialog] = useState(false);
-  const [openProfileDialog, setOpenProfileDialog] = useState(false);
-  const [profile, setProfile] = useState({
-    displayName: '',
-    bio: '',
-    hourlyRate: 0,
-    tags: [] as string[]
-  });
+  const modelService = useModelService();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const navigate = useNavigate();
+  
+  // State
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ModelProfile | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activeTab, setActiveTab] = useState<number>(0);
 
-  useEffect(() => {
-    fetchDashboardData();
-    fetchProfile();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  // Load dashboard data
+  const loadDashboardData = useCallback(async () => {
+    if (!user?.id) return;
+    
     try {
-      const response = await fetch('/api/model/dashboard', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      setLoading(true);
+      
+      // Simulate API calls - replace with actual service calls
+      // const profileData = await modelService.getModelProfile(user.id);
+      // setProfile(profileData);
+      // 
+      // const statsData = await modelService.getModelStats(user.id);
+      // setStats(statsData);
+      
+      // Mock data for demonstration
+      setProfile({
+        id: user.id,
+        username: user.username || 'modelo1',
+        displayName: user.displayName || 'Modelo Ejemplo',
+        email: user.email || 'modelo@example.com',
+        bio: '¡Hola! Soy una modelo profesional con experiencia en transmisiones en vivo.',
+        profileImage: user.profileImage || '',
+        coverImage: '',
+        isOnline: true,
+        lastSeen: new Date().toISOString(),
+        categories: ['Entretenimiento', 'Música', 'Baile'],
+        languages: ['Español', 'Inglés'],
+        pricePerMinute: 5.99,
+        rating: 4.8,
+        totalSessions: 124,
+        totalEarnings: 5240.50,
+        totalViews: 8452,
+        isFavorite: true,
       });
-      const data = await response.json();
-      setStats(data);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    }
-  };
-
-  const fetchProfile = async () => {
-    try {
-      const response = await fetch('/api/model/profile', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      
+      setStats({
+        totalEarnings: 5240.50,
+        totalSessions: 124,
+        totalViews: 8452,
+        rating: 4.8,
+        availableSlots: 12,
+        upcomingSessions: 5,
       });
-      const data = await response.json();
-      setProfile(data);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+      
+    } catch (err) {
+      setError('Error al cargar los datos del dashboard');
+      console.error('Error loading dashboard data:', err);
     } finally {
       setLoading(false);
     }
+  }, [user?.id]);
+
+  // Load data on component mount
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Handle tab change
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
   };
 
-  const handleToggleAvailability = async (available: boolean) => {
-    try {
-      const response = await fetch('/api/model/availability', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          isAvailable: available,
-          slots: availability
-        })
-      });
-
-      if (response.ok) {
-        setIsAvailable(available);
-      }
-    } catch (error) {
-      console.error('Error updating availability:', error);
-    }
+  // Handle navigation
+  const handleGoLive = () => {
+    navigate('/model/live');
   };
 
-  const handleUpdateProfile = async () => {
-    try {
-      const response = await fetch('/api/model/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(profile)
-      });
-
-      if (response.ok) {
-        setOpenProfileDialog(false);
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
-
-  const getDayName = (dayNumber: number) => {
-    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    return days[dayNumber];
+  const handleViewProfile = () => {
+    navigate('/model/profile');
   };
 
   if (loading) {
-    return <Typography>Cargando...</Typography>;
+    return (
+      <ModelDashboardLayout>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress />
+        </Box>
+      </ModelDashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <ModelDashboardLayout>
+        <Box p={3}>
+          <Typography color="error">{error}</Typography>
+        </Box>
+      </ModelDashboardLayout>
+    );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Panel de Modelo
-          </Typography>
-          <Typography variant="subtitle1" color="textSecondary">
-            Bienvenida, {user?.firstName} - Gestiona tu perfil y sesiones
-          </Typography>
-        </Box>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isAvailable}
-              onChange={(e) => handleToggleAvailability(e.target.checked)}
-              color="success"
-            />
-          }
-          label={isAvailable ? 'Disponible' : 'No Disponible'}
-        />
-      </Box>
-
-      {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <AttachMoney color="success" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4">
-                    {formatCurrency(stats?.totalEarnings || 0)}
-                  </Typography>
-                  <Typography color="textSecondary">Ganancias Totales</Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <TrendingUp color="primary" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4">
-                    {formatCurrency(stats?.thisMonth || 0)}
-                  </Typography>
-                  <Typography color="textSecondary">Este Mes</Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <Videocam color="info" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4">{stats?.activeConnections || 0}</Typography>
-                  <Typography color="textSecondary">Conexiones Activas</Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center">
-                <Star color="warning" sx={{ mr: 2 }} />
-                <Box>
-                  <Typography variant="h4">{stats?.ratings.averageRating || 0}</Typography>
-                  <Typography color="textSecondary">
-                    Calificación ({stats?.ratings.totalRatings || 0} reseñas)
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Profile and Availability */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="h6">
-                  <Person sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Mi Perfil
-                </Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<Edit />}
-                  onClick={() => setOpenProfileDialog(true)}
-                >
-                  Editar
-                </Button>
-              </Box>
-              <Typography variant="body1" gutterBottom>
-                <strong>Nombre:</strong> {profile.displayName}
+    <ModelDashboardLayout>
+      <Container maxWidth="xl">
+        {/* Header with Quick Actions */}
+        <Box mb={4}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Box>
+              <Typography variant="h4" component="h1" gutterBottom>
+                Hola, {profile?.displayName || 'Modelo'}
               </Typography>
-              <Typography variant="body1" gutterBottom>
-                <strong>Tarifa por hora:</strong> {formatCurrency(profile.hourlyRate)}
+              <Typography variant="subtitle1" color="text.secondary">
+                Bienvenida a tu panel de control
               </Typography>
-              <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                {profile.bio}
-              </Typography>
-              <Box>
-                {profile.tags.map((tag) => (
-                  <Chip key={tag} label={tag} size="small" sx={{ mr: 0.5, mb: 0.5 }} />
-                ))}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="h6">
-                  <AccessTime sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Disponibilidad
-                </Typography>
-                <Button
-                  variant="outlined"
-                  startIcon={<Edit />}
-                  onClick={() => setOpenAvailabilityDialog(true)}
-                >
-                  Configurar
-                </Button>
-              </Box>
-              <List dense>
-                {availability.map((slot) => (
-                  <ListItem key={slot.id}>
-                    <ListItemText
-                      primary={getDayName(slot.dayOfWeek)}
-                      secondary={`${slot.startTime} - ${slot.endTime}`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Scheduled Sessions */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            <Schedule sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Sesiones Programadas
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Cliente</TableCell>
-                  <TableCell>Fecha y Hora</TableCell>
-                  <TableCell>Duración</TableCell>
-                  <TableCell>Tipo</TableCell>
-                  <TableCell>Estado</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {stats?.scheduledSessions.map((session) => (
-                  <TableRow key={session.id}>
-                    <TableCell>{session.clientName}</TableCell>
-                    <TableCell>{new Date(session.dateTime).toLocaleString()}</TableCell>
-                    <TableCell>{session.duration} min</TableCell>
-                    <TableCell>
-                      <Chip label={session.type} size="small" />
-                    </TableCell>
-                    <TableCell>
-                      <Chip label="Programada" color="primary" size="small" />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-
-      {/* Recent Activity */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Actividad Reciente
-          </Typography>
-          <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-            {stats?.recentActivity.map((activity) => (
-              <Box key={activity.id} sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                <Typography variant="body2">
-                  <strong>{activity.type}:</strong> {activity.description}
-                </Typography>
-                <Typography variant="caption" color="textSecondary">
-                  {activity.timestamp}
-                </Typography>
-              </Box>
-            ))}
+            </Box>
+            <Box>
+              <Button
+                variant="contained"
+                color="error"
+                size="large"
+                startIcon={<GoLiveIcon />}
+                onClick={handleGoLive}
+                sx={{ mr: 2 }}
+              >
+                Transmitir en Vivo
+              </Button>
+              <Button
+                variant="outlined"
+                size="large"
+                startIcon={<PersonIcon />}
+                onClick={handleViewProfile}
+              >
+                Ver Perfil
+              </Button>
+            </Box>
           </Box>
-        </CardContent>
-      </Card>
 
-      {/* Profile Edit Dialog */}
-      <Dialog open={openProfileDialog} onClose={() => setOpenProfileDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Editar Perfil</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Nombre de Modelo"
-            value={profile.displayName}
-            onChange={(e) => setProfile({ ...profile, displayName: e.target.value })}
-            sx={{ mb: 2, mt: 1 }}
-          />
-          <TextField
-            fullWidth
-            label="Biografía"
-            multiline
-            rows={4}
-            value={profile.bio}
-            onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Tarifa por Hora (USD)"
-            type="number"
-            value={profile.hourlyRate}
-            onChange={(e) => setProfile({ ...profile, hourlyRate: parseFloat(e.target.value) })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Etiquetas (separadas por comas)"
-            value={profile.tags.join(', ')}
-            onChange={(e) => setProfile({ ...profile, tags: e.target.value.split(', ').filter(tag => tag.trim()) })}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenProfileDialog(false)}>Cancelar</Button>
-          <Button onClick={handleUpdateProfile} variant="contained">
-            Guardar Cambios
-          </Button>
-        </DialogActions>
-      </Dialog>
+          {/* Stats Cards */}
+          <Grid container spacing={3} mb={4}>
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <StatCard
+                title="Ganancias Totales"
+                value={`$${stats?.totalEarnings.toFixed(2) || '0.00'}`}
+                icon={<EarningsIcon />}
+                color={theme.palette.primary.main}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <StatCard
+                title="Sesiones"
+                value={stats?.totalSessions.toString() || '0'}
+                icon={<ScheduleIcon />}
+                color={theme.palette.success.main}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <StatCard
+                title="Vistas"
+                value={stats?.totalViews.toString() || '0'}
+                icon={<VisibilityIcon />}
+                color={theme.palette.info.main}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <StatCard
+                title="Calificación"
+                value={stats?.rating.toFixed(1) || '0.0'}
+                icon={<StarIcon />}
+                color={theme.palette.warning.main}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <StatCard
+                title="Próximas Sesiones"
+                value={stats?.upcomingSessions.toString() || '0'}
+                icon={<ScheduleIcon />}
+                color={theme.palette.secondary.main}
+              />
+            </Grid>
+          </Grid>
+        </Box>
 
-      {/* Availability Dialog */}
-      <Dialog open={openAvailabilityDialog} onClose={() => setOpenAvailabilityDialog(false)}>
-        <DialogTitle>Configurar Disponibilidad</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            Configura tus horarios de disponibilidad para cada día de la semana.
-          </Typography>
-          {/* Availability configuration would go here */}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenAvailabilityDialog(false)}>Cancelar</Button>
-          <Button variant="contained">
-            Guardar Horarios
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        {/* Main Content */}
+        <Grid container spacing={3}>
+          {/* Left Column */}
+          <Grid item xs={12} lg={8}>
+            {/* Quick Actions */}
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Acciones Rápidas
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6} sm={4} md={3}>
+                    <ActionButton
+                      icon={<GoLiveIcon />}
+                      label="Transmitir"
+                      onClick={handleGoLive}
+                      color={theme.palette.error.main}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4} md={3}>
+                    <ActionButton
+                      icon={<GalleryIcon />}
+                      label="Galería"
+                      onClick={() => navigate('/model/gallery')}
+                      color={theme.palette.primary.main}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4} md={3}>
+                    <ActionButton
+                      icon={<ChatIcon />}
+                      label="Mensajes"
+                      onClick={() => navigate('/model/messages')}
+                      color={theme.palette.info.main}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4} md={3}>
+                    <ActionButton
+                      icon={<ScheduleIcon />}
+                      label="Agenda"
+                      onClick={() => navigate('/model/schedule')}
+                      color={theme.palette.success.main}
+                    />
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Recent Activity */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Actividad Reciente
+                </Typography>
+                <Box p={2} bgcolor={alpha(theme.palette.primary.main, 0.05)} borderRadius={1} mb={2}>
+                  <Typography variant="body2">
+                    <strong>Nuevo seguidor:</strong> usuario123 empezó a seguirte
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Hace 2 horas
+                  </Typography>
+                </Box>
+                <Box p={2} bgcolor={alpha(theme.palette.success.main, 0.05)} borderRadius={1} mb={2}>
+                  <Typography variant="body2">
+                    <strong>Pago recibido:</strong> $25.00 por sesión privada
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Ayer, 14:30
+                  </Typography>
+                </Box>
+                <Box p={2} bgcolor={alpha(theme.palette.info.main, 0.05)} borderRadius={1}>
+                  <Typography variant="body2">
+                    <strong>Nuevo mensaje</strong> de usuario456
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Ayer, 10:15
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Right Column */}
+          <Grid item xs={12} lg={4}>
+            {/* Profile Summary */}
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Box display="flex" alignItems="center" mb={2}>
+                  <Avatar 
+                    src={profile?.profileImage} 
+                    sx={{ width: 80, height: 80, mr: 2 }}
+                  />
+                  <Box>
+                    <Typography variant="h6">{profile?.displayName}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      @{profile?.username}
+                    </Typography>
+                    <Chip 
+                      label={profile?.isOnline ? 'En línea' : 'Desconectada'} 
+                      size="small" 
+                      color={profile?.isOnline ? 'success' : 'default'}
+                      sx={{ mt: 0.5 }}
+                    />
+                  </Box>
+                </Box>
+                <Typography variant="body2" paragraph>
+                  {profile?.bio || 'No hay biografía disponible.'}
+                </Typography>
+                <Button 
+                  fullWidth 
+                  variant="outlined" 
+                  startIcon={<EditIcon />}
+                  onClick={() => navigate('/model/profile/edit')}
+                >
+                  Editar Perfil
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Quick Stats */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Estadísticas Rápidas
+                </Typography>
+                <Box mb={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    Seguidores
+                  </Typography>
+                  <Typography variant="h6">1,245</Typography>
+                </Box>
+                <Box mb={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    Calificación Promedio
+                  </Typography>
+                  <Box display="flex" alignItems="center">
+                    <StarIcon color="warning" />
+                    <Typography variant="h6" ml={0.5}>
+                      {profile?.rating.toFixed(1) || '0.0'}
+                      <Typography component="span" variant="body2" color="text.secondary" ml={0.5}>
+                        (124 reseñas)
+                      </Typography>
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Precio por Minuto
+                  </Typography>
+                  <Typography variant="h6">
+                    ${profile?.pricePerMinute?.toFixed(2) || '0.00'}
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Container>
+    </ModelDashboardLayout>
   );
 };
+
+// Helper Components
+interface StatCardProps {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
+  <Paper 
+    elevation={0} 
+    sx={{ 
+      p: 2, 
+      height: '100%',
+      border: `1px solid rgba(0, 0, 0, 0.12)`,
+      borderRadius: 2,
+      transition: 'all 0.3s ease',
+      '&:hover': {
+        transform: 'translateY(-4px)',
+        boxShadow: 3,
+      },
+    }}
+  >
+    <Box display="flex" justifyContent="space-between" alignItems="center">
+      <Box>
+        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          {title}
+        </Typography>
+        <Typography variant="h5" fontWeight="bold">
+          {value}
+        </Typography>
+      </Box>
+      <Box
+        sx={{
+          backgroundColor: alpha(color, 0.1),
+          width: 48,
+          height: 48,
+          borderRadius: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: color,
+        }}
+      >
+        {React.cloneElement(icon as React.ReactElement, { fontSize: 'large' })}
+      </Box>
+    </Box>
+  </Paper>
+);
+
+interface ActionButtonProps {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  color: string;
+}
+
+const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick, color }) => (
+  <Button
+    fullWidth
+    variant="outlined"
+    onClick={onClick}
+    sx={{
+      p: 2,
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      minHeight: 100,
+      border: `1px solid ${alpha(color, 0.3)}`,
+      '&:hover': {
+        borderColor: color,
+        backgroundColor: alpha(color, 0.05),
+      },
+    }}
+  >
+    <Box 
+      sx={{ 
+        color,
+        mb: 1,
+        '& > svg': {
+          fontSize: 32,
+        },
+      }}
+    >
+      {icon}
+    </Box>
+    <Typography variant="body2" color="text.primary">
+      {label}
+    </Typography>
+  </Button>
+);
 
 export default ModelDashboard;

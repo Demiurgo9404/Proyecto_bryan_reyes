@@ -1,33 +1,31 @@
-using System.ComponentModel.DataAnnotations;
+using System;
+using LoveRose.Core.Domain.Enums;
 
-namespace LoveRose.Core.Domain.Entities;
-
-public class Transaction
+namespace LoveRose.Core.Domain.Entities
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    
-    [Required]
-    public string UserId { get; set; } = string.Empty;
-    
-    [Required]
-    [MaxLength(50)]
-    public string Type { get; set; } = string.Empty; // 'purchase', 'sale', 'refund', etc.
-    
-    [Required]
-    public decimal Amount { get; set; }
-    
-    [Required]
-    public string Currency { get; set; } = "USD";
-    
-    [MaxLength(500)]
-    public string? Description { get; set; }
-    
-    [Required]
-    public string Status { get; set; } = "pending"; // 'pending', 'completed', 'failed', 'refunded'
-    
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime? CompletedAt { get; set; }
-    
-    // Navigation property
-    public virtual User User { get; set; } = null!;
+    public class Transaction : BaseEntity
+    {
+        public string TransactionId { get; set; }
+        public int SenderId { get; set; }
+        public int? RecipientId { get; set; }
+        public decimal Amount { get; set; }
+        public decimal Fee { get; set; }
+        public decimal NetAmount => Amount - Fee;
+        public string Currency { get; set; } = "USD";
+        public string Description { get; set; }
+        public TransactionStatus Status { get; set; }
+        public TransactionType Type { get; set; }
+        public string PaymentMethod { get; set; }
+        public string PaymentProvider { get; set; }
+        public string PaymentProviderTransactionId { get; set; }
+        public DateTime? ProcessedAt { get; set; }
+        public string Notes { get; set; }
+        public int? RelatedEntityId { get; set; }
+        public string RelatedEntityType { get; set; }
+
+        // Navigation properties
+        public virtual User Sender { get; set; }
+        public virtual User Recipient { get; set; }
+        public virtual VideoCall VideoCall { get; set; }
+    }
 }

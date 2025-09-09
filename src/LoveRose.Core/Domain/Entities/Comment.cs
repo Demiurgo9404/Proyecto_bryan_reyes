@@ -1,60 +1,61 @@
-using System.ComponentModel.DataAnnotations;
+using System;
+using System.Collections.Generic;
+using LoveRose.Core.Domain.Enums;
 
-namespace LoveRose.Core.Domain.Entities;
-
-public class Comment
+namespace LoveRose.Core.Domain.Entities
 {
-    public Guid Id { get; set; }
-    public Guid PostId { get; set; }
-    public Post Post { get; set; } = null!;
-    
-    public Guid UserId { get; set; }
-    public User User { get; set; } = null!;
-    
-    [MaxLength(2200)]
-    public string Content { get; set; } = string.Empty;
-    
-    // Para respuestas a comentarios
-    public Guid? ParentCommentId { get; set; }
-    public Comment? ParentComment { get; set; }
-    
-    // Métricas
-    public int LikesCount { get; set; } = 0;
-    public int RepliesCount { get; set; } = 0;
-    
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    
-    public bool IsActive { get; set; } = true;
-    public bool IsEdited { get; set; } = false;
-    public bool IsPinned { get; set; } = false; // Para comentarios destacados
-    
-    // Colecciones
-    public ICollection<CommentLike> Likes { get; set; } = new List<CommentLike>();
-    public ICollection<Comment> Replies { get; set; } = new List<Comment>();
-    public ICollection<CommentMention> Mentions { get; set; } = new List<CommentMention>();
-}
+    public class Comment : BaseEntity
+    {
+        public string Content { get; set; }
+        public int UserId { get; set; }
+        public int PostId { get; set; }
+        public int? ParentCommentId { get; set; }
+        public string ImageUrl { get; set; }
+        public string VideoUrl { get; set; }
+        public string ThumbnailUrl { get; set; }
+        public int LikeCount { get; set; }
+        public int ReplyCount { get; set; }
+        public bool IsEdited { get; set; }
+        public DateTime? EditedAt { get; set; }
+        public bool IsPinned { get; set; }
+        public bool IsRemoved { get; set; }
+        public string RemovedReason { get; set; }
+        public string[] UserMentions { get; set; } = Array.Empty<string>();
+        public string[] Hashtags { get; set; } = Array.Empty<string>();
 
-public class CommentLike
-{
-    public Guid Id { get; set; }
-    public Guid CommentId { get; set; }
-    public Comment Comment { get; set; } = null!;
-    
-    public Guid UserId { get; set; }
-    public User User { get; set; } = null!;
-    
-    public DateTime CreatedAt { get; set; }
-}
+        // Navigation properties
+        public virtual User User { get; set; }
+        public virtual Post Post { get; set; }
+        public virtual Comment ParentComment { get; set; }
+        public virtual ICollection<Comment> Replies { get; set; } = new List<Comment>();
+        public virtual ICollection<CommentLike> Likes { get; set; } = new List<CommentLike>();
+        public virtual ICollection<CommentMedia> Media { get; set; } = new List<CommentMedia>();
+    }
 
-public class CommentMention
-{
-    public Guid Id { get; set; }
-    public Guid CommentId { get; set; }
-    public Comment Comment { get; set; } = null!;
-    
-    public Guid MentionedUserId { get; set; }
-    public User MentionedUser { get; set; } = null!;
-    
-    public DateTime CreatedAt { get; set; }
+    public class CommentLike : BaseEntity
+    {
+        public int CommentId { get; set; }
+        public int UserId { get; set; }
+        public DateTime LikedAt { get; set; } = DateTime.UtcNow;
+
+        // Navigation properties
+        public virtual Comment Comment { get; set; }
+        public virtual User User { get; set; }
+    }
+
+    public class CommentMedia : BaseEntity
+    {
+        public int CommentId { get; set; }
+        public MediaType Type { get; set; }
+        public string Url { get; set; }
+        public string ThumbnailUrl { get; set; }
+        public int? Width { get; set; }
+        public int? Height { get; set; }
+        public int? Duration { get; set; }
+        public int Position { get; set; }
+        public string AltText { get; set; }
+
+        // Navigation property
+        public virtual Comment Comment { get; set; }
+    }
 }

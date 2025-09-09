@@ -1,59 +1,42 @@
-using System.ComponentModel.DataAnnotations;
+using System;
+using System.Collections.Generic;
+using LoveRose.Core.Domain.Enums;
 
-namespace LoveRose.Core.Domain.Entities;
-
-public class Post
+namespace LoveRose.Core.Domain.Entities
 {
-    public Guid Id { get; set; }
-    public Guid UserId { get; set; }
-    public User User { get; set; } = null!;
-    
-    [MaxLength(2200)]
-    public string? Caption { get; set; }
-    
-    public string? Location { get; set; }
-    
-    public PostType Type { get; set; }
-    
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    
-    public bool IsActive { get; set; } = true;
-    
-    // Engagement metrics
-    public int LikesCount { get; set; } = 0;
-    public int CommentsCount { get; set; } = 0;
-    public int SharesCount { get; set; } = 0;
-    public int ViewsCount { get; set; } = 0;
-    
-    // Privacy settings
-    public PostVisibility Visibility { get; set; } = PostVisibility.Public;
-    public bool AllowComments { get; set; } = true;
-    public bool AllowSharing { get; set; } = true;
-    
-    // Collections
-    public ICollection<PostMedia> Media { get; set; } = new List<PostMedia>();
-    public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
-    public ICollection<Comment> Comments { get; set; } = new List<Comment>();
-    public ICollection<PostTag> Tags { get; set; } = new List<PostTag>();
-    public ICollection<PostHashtag> Hashtags { get; set; } = new List<PostHashtag>();
-    public ICollection<PostShare> Shares { get; set; } = new List<PostShare>();
-    public ICollection<PostCollection> Collections { get; set; } = new List<PostCollection>();
-}
+    public class Post : BaseEntity
+    {
+        public string Content { get; set; }
+        public string ImageUrl { get; set; }
+        public string VideoUrl { get; set; }
+        public string ThumbnailUrl { get; set; }
+        public int ViewCount { get; set; }
+        public bool IsPinned { get; set; }
+        public bool IsArchived { get; set; }
+        public PostVisibility Visibility { get; set; }
+        public int? ParentPostId { get; set; }
+        public int UserId { get; set; }
 
-public enum PostType
-{
-    Photo = 1,
-    Video = 2,
-    Carousel = 3,
-    Text = 4,
-    Reel = 5
-}
+        // Navigation properties
+        public virtual User User { get; set; }
+        public virtual Post ParentPost { get; set; }
+        public virtual ICollection<Post> Comments { get; set; } = new List<Post>();
+        public virtual ICollection<Like> Likes { get; set; } = new List<Like>();
+        public virtual ICollection<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
+        public virtual ICollection<PostMedia> Media { get; set; } = new List<PostMedia>();
+    }
 
-public enum PostVisibility
-{
-    Public = 1,
-    Followers = 2,
-    Private = 3,
-    Close_Friends = 4
+    public class PostMedia : BaseEntity
+    {
+        public string Url { get; set; }
+        public MediaType Type { get; set; }
+        public int? Width { get; set; }
+        public int? Height { get; set; }
+        public int? Duration { get; set; }
+        public string ThumbnailUrl { get; set; }
+        public int PostId { get; set; }
+        public int Position { get; set; }
+
+        public virtual Post Post { get; set; }
+    }
 }
